@@ -1,11 +1,11 @@
-use std::f32::consts::PI;
-
-use super::movement_plugin::{Velocity, MOVE_TICK};
 use crate::{
     game::plugin::{GameCamera, GameLight},
     AppState,
 };
-use bevy::prelude::*;
+use bevy::{input::mouse::MouseWheel, prelude::*};
+use bevy_mod_picking::prelude::*;
+use bevy_picking_rapier::bevy_rapier3d::prelude::*;
+use std::f32::{consts::PI, EPSILON};
 
 pub struct PlayerPlugin;
 
@@ -13,103 +13,206 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (move_player, move_camera_and_light).run_if(in_state(AppState::InGame)),
+            (
+                move_player,
+                move_camera_and_light,
+                zoom_camera,
+                rotate_camera,
+            )
+                .run_if(in_state(AppState::InGame)),
         );
     }
 }
 
-#[derive(Component, Default)]
-pub struct Player;
+#[derive(Component)]
+pub struct Player {
+    pub shots: u32,
+}
+
+impl Default for Player {
+    fn default() -> Self {
+        Self { shots: 1 }
+    }
+}
 
 pub fn spawn_player(
     commands: &mut Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    pos: IVec2,
-    dir: f32,
+    pos: Vec3,
     bundle: Option<impl Bundle>,
 ) {
-    const X: f32 = 0.3;
-    const Y: f32 = 0.2;
-    const Z: f32 = 0.2;
+    const R: f32 = 0.2;
 
-    let asset = Cuboid::new(X, Y, Z);
     let mut e = commands.spawn(PbrBundle {
-        mesh: meshes.add(asset),
+        mesh: meshes.add(Sphere::new(R)),
         material: materials.add(Color::RED),
-        transform: Transform::from_translation(Vec3::new(pos.x as f32, pos.y as f32, Z / 2.0))
-            .with_rotation(Quat::from_rotation_z(dir)),
+        transform: Transform::from_translation(pos),
         ..Default::default()
     });
-    let e = e.insert((Player, Velocity::default()));
+    let e = e.insert((
+        Player::default(),
+        Sleeping::default(),
+        ExternalImpulse::default(),
+        RigidBody::Dynamic,
+        Collider::ball(R),
+        Friction::coefficient(0.6),
+        Damping {
+            linear_damping: 0.5,
+            angular_damping: 0.5,
+        },
+        ColliderMassProperties::Mass(100.0),
+        ActiveEvents::COLLISION_EVENTS,
+        ColliderDebugColor(Color::LIME_GREEN),
+    ));
     if let Some(bundle) = bundle {
         e.insert(bundle);
     }
 }
 
+#[derive(Default, Clone, Copy)]
+struct DragInitInfo {
+    position: Vec3,
+    normal: Vec3,
+}
+
 fn move_player(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut player: Query<&mut Velocity, With<Player>>,
+    mut gizmos: Gizmos,
+    mut player: Query<(&Transform, Entity, &mut Player, &mut ExternalImpulse)>,
+    camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
+    windows: Query<&Window>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    mut presses: EventReader<Pointer<Down>>,
+    mut current: Local<Option<DragInitInfo>>,
 ) {
-    let Some(mut player) = player.iter_mut().next() else {
+    let (camera, camera_transform) = camera.single();
+
+    let Some((transform, player_entity, mut player, mut impulse)) = player.iter_mut().next() else {
         return;
     };
 
-    // rotation
-    if keyboard_input.pressed(KeyCode::KeyA) {
-        player.angular = Quat::from_rotation_z(PI / 2.0 * MOVE_TICK);
-    } else if keyboard_input.pressed(KeyCode::KeyD) {
-        player.angular = Quat::from_rotation_z(-PI / 2.0 * MOVE_TICK);
-    } else if player.angular != Quat::IDENTITY {
-        player.angular = Quat::IDENTITY;
+    for press in presses.read() {
+        match (press.button, press.hit.position, press.hit.normal) {
+            (PointerButton::Primary, Some(position), Some(normal)) => {
+                if press.target == player_entity && player.shots > 0 {
+                    player.shots -= 1;
+                    *current = Some(DragInitInfo { position, normal });
+                }
+            }
+            _ => {}
+        }
     }
 
-    // movement
-    if keyboard_input.pressed(KeyCode::KeyW) {
-        // move toward current dir
-        player.linear = 1.0;
-    } else if keyboard_input.pressed(KeyCode::KeyS) {
-        // move backward
-        player.linear = -1.0;
-    } else if player.linear != 0.0 {
-        player.linear = 0.0;
+    let Some(drag_info) = *current else {
+        return;
+    };
+
+    let Some(cursor_position) = windows.single().cursor_position() else {
+        return;
+    };
+
+    let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+        return;
+    };
+
+    let Some(distance) = ray.intersect_plane(
+        transform
+            .translation
+            .lerp(camera_transform.translation(), 0.5),
+        Plane3d::new(drag_info.normal),
+    ) else {
+        return;
+    };
+
+    let point = ray.get_point(distance);
+
+    if mouse_input.just_released(MouseButton::Left) {
+        let push = (drag_info.position - point) * 100.0;
+        println!("Pushing with {:?}", push);
+        *impulse = ExternalImpulse::at_point(push, drag_info.position, transform.translation);
+        *current = None;
+    }
+
+    if mouse_input.pressed(MouseButton::Left) {
+        if impulse.is_changed() {
+            impulse.bypass_change_detection();
+            impulse.reset();
+        }
+        gizmos.line(drag_info.position, point, Color::WHITE);
     }
 }
 
 fn move_camera_and_light(
-    moved_player: Query<
-        &Transform,
-        (
-            With<Player>,
-            (Changed<Transform>, Without<GameLight>, Without<GameCamera>),
-        ),
-    >,
-    mut camera: Query<&mut Transform, (With<GameCamera>, Without<GameLight>)>,
+    moved_player: Query<Ref<Transform>, (With<Player>, Without<GameLight>, Without<GameCamera>)>,
+    mut camera: Query<(&mut Transform, Ref<GameCamera>), Without<GameLight>>,
     mut light: Query<&mut Transform, (With<GameLight>, Without<GameCamera>)>,
 ) {
-    const CAMERA_DISTANCE: f32 = 3.0;
-    const LIGHT_DISTANCE: f32 = 1.8;
+    const LIGHT_DISTANCE: f32 = 2.5;
 
     let Some(moved_player) = moved_player.iter().next() else {
         return;
     };
-    println!("Player moved");
 
-    let (px, py) = (moved_player.translation.x, moved_player.translation.y);
-    let rotation = moved_player.rotation;
+    let (mut camera_trans, camera_comp) = camera.single_mut();
 
-    let c_trans = Vec3 {
-        z: CAMERA_DISTANCE,
-        ..moved_player.translation
-    } + rotation * -Vec3::X * CAMERA_DISTANCE;
+    if !moved_player.is_changed() && !camera_comp.is_changed() {
+        return;
+    }
 
     // move camera and light
-    let mut camera = camera.single_mut();
+    let camera_dist = camera_comp.distance;
     let mut light = light.single_mut();
-    *camera = Transform {
-        translation: c_trans,
-        ..Default::default()
+
+    let ang_x = camera_comp.offset.x;
+    let ang_z = camera_comp.offset.y;
+
+    let rotation = Quat::from_rotation_z(ang_x)
+        * Quat::from_rotation_x(ang_z.clamp(0.0 + EPSILON, PI - EPSILON));
+
+    *camera_trans = Transform::from_translation(
+        moved_player.translation + rotation.mul_vec3(Vec3::Z * camera_dist),
+    )
+    .with_rotation(rotation)
+    .looking_at(moved_player.translation, Vec3::Z);
+
+    *light =
+        Transform::from_translation(moved_player.translation + Vec3::new(0.0, 0.0, LIGHT_DISTANCE));
+}
+
+fn zoom_camera(
+    mut camera: Query<(&Transform, &mut GameCamera)>,
+    mut scroll: EventReader<MouseWheel>,
+) {
+    let mut camera = camera.single_mut();
+
+    for scroll in scroll.read() {
+        camera.1.distance -= scroll.y * 0.5;
+        camera.1.distance = camera.1.distance.clamp(1.0, 25.0);
     }
-    .looking_at(Vec3::new(px, py, 0.5), Vec3::Z);
-    *light = Transform::from_xyz(px, py, LIGHT_DISTANCE);
+}
+
+fn rotate_camera(
+    mut camera: Query<(&Transform, &mut GameCamera)>,
+    windows: Query<&Window>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    mut last_point: Local<Vec2>,
+) {
+    let mut camera = camera.single_mut();
+
+    let single = windows.single();
+    let Some(cursor_position) = single.cursor_position() else {
+        return;
+    };
+
+    if mouse_input.just_pressed(MouseButton::Middle) {
+        *last_point = cursor_position;
+        return;
+    }
+
+    if mouse_input.pressed(MouseButton::Middle) {
+        let delta = cursor_position - *last_point;
+        *last_point = cursor_position;
+        camera.1.offset.x += delta.x * 0.02;
+        camera.1.offset.y -= delta.y * 0.02;
+    }
 }
