@@ -1,55 +1,36 @@
 use crate::{
-    game::{plugin::GameCamera, plugins::player_plugin::spawn_player},
-    AppState,
+    game::{
+        components::{GameCamera, GameEntity, Ground, Player},
+        resources::{GameScene, GameSceneData},
+    },
+    AppState, Fonts,
 };
 use bevy::{input::keyboard::KeyboardInput, prelude::*};
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 
-use super::player_plugin::Player;
 pub struct GameScenePlugin;
 
-#[derive(Resource, Default, Clone)]
-pub struct GameScene(pub Option<GameSceneData>);
-
-#[derive(Resource, Default, Clone)]
-pub struct GameSceneData(pub GameLevel);
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum GameLevel {
-    #[default]
-    Level1,
-    Level2,
-}
-
-#[derive(Event)]
+#[derive(Event, Deref, DerefMut)]
 pub struct SetGameScene(pub GameSceneData);
-
-#[derive(Component, Clone, Copy)]
-pub struct SceneEntity;
-
-#[derive(Component, Deref, DerefMut)]
-pub struct Ground(pub Timer);
-
-impl Default for Ground {
-    fn default() -> Self {
-        let mut timer = Timer::from_seconds(0.75, TimerMode::Once);
-        timer.pause();
-        Self(timer)
-    }
-}
 
 impl Plugin for GameScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameScene>()
+            .init_resource::<ReloadTimerInitialized>()
             .add_event::<SetGameScene>()
             .add_systems(
                 Update,
-                (set_game_scene, reload_scene, reload_on_ground_collision)
+                (
+                    set_game_scene,
+                    reload_scene,
+                    reload_on_ground_collision,
+                    update_distance,
+                )
                     .run_if(in_state(AppState::InGame)),
             )
             .add_systems(
                 Update,
-                spawn_game_scene
+                (reset_state, spawn_distance_text, spawn_game_scene)
                     .run_if(in_state(AppState::InGame))
                     .run_if(resource_changed::<GameScene>),
             );
@@ -61,7 +42,7 @@ fn set_game_scene(
     mut set_game_scene: EventReader<SetGameScene>,
 ) {
     for set_game_scene in set_game_scene.read() {
-        game_scene.0 = Some(set_game_scene.0.clone());
+        **game_scene = Some(**set_game_scene);
     }
 }
 
@@ -75,10 +56,71 @@ fn reload_scene(
     };
 
     if key_input.state.is_pressed() && key_input.key_code == KeyCode::KeyR {
-        if let Some(game_scene) = &game_scene.0 {
-            set_game_scene.send(SetGameScene(game_scene.clone()));
+        if let Some(game_scene) = **game_scene {
+            set_game_scene.send(SetGameScene(game_scene));
         }
     }
+}
+
+fn reset_state(
+    mut commands: Commands,
+    mut camera: Query<&mut GameCamera>,
+    mut timer_initialized: ResMut<ReloadTimerInitialized>,
+    entities: Query<(Entity, &GameEntity)>,
+) {
+    println!("Clearing game entities");
+    for (entity, _) in entities.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+
+    // Reset the camera orientation and distance
+    if let Some(mut camera) = camera.iter_mut().next() {
+        *camera = GameCamera::default();
+    }
+
+    // Reset reload timer
+    **timer_initialized = false;
+}
+
+#[derive(Component)]
+struct DistanceText;
+
+fn spawn_distance_text(mut commands: Commands, fonts: Res<Fonts>) {
+    // Text to describe the controls.
+    const GAME_MANUAL_TEXT: &str = "\
+    Left drag to launch the ball\n\
+    Middle mouse to zoom/rotate camera\n\
+    Press R to reset the level";
+
+    println!("Spawning distance text");
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.),
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                ..default()
+            },
+            GameEntity,
+        ))
+        .with_children(|root| {
+            root.spawn((
+                TextBundle {
+                    text: Text::from_section(
+                        GAME_MANUAL_TEXT,
+                        TextStyle {
+                            font: fonts.regular.clone(),
+                            font_size: 60.0,
+                            color: Color::WHITE,
+                        },
+                    ),
+                    ..Default::default()
+                },
+                DistanceText,
+            ));
+        });
 }
 
 fn spawn_game_scene(
@@ -86,50 +128,16 @@ fn spawn_game_scene(
     game_scene: Res<GameScene>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    entities: Query<(Entity, &SceneEntity)>,
-    mut camera: Query<&mut GameCamera>,
+    asset_server: Res<AssetServer>,
 ) {
-    println!("Clearing game scene");
-    for (entity, _) in entities.iter() {
-        commands.entity(entity).despawn_recursive();
-    }
-
     println!("Spawning game scene");
     if let Some(game_scene) = &game_scene.0 {
-        commands
-            .spawn(PbrBundle {
-                mesh: meshes.add(Cuboid::new(1.0, 1.0, 0.1)),
-                material: materials.add(Color::BLUE),
-                ..Default::default()
-            })
-            .insert(SceneEntity)
-            .insert((
-                Collider::cuboid(0.5, 0.5, 0.05),
-                Friction::coefficient(1.0),
-                ColliderMassProperties::Mass(1000.0),
-            ));
-        commands
-            .spawn(PbrBundle {
-                mesh: meshes.add(Circle::new(500.0)),
-                material: materials.add(Color::CRIMSON),
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
-                ..Default::default()
-            })
-            .insert((SceneEntity, Ground::default()))
-            .insert((
-                Collider::cuboid(500.0, 500.0, 0.0),
-                Friction::coefficient(1000.0),
-                ColliderMassProperties::Mass(100000.0),
-                ActiveEvents::COLLISION_EVENTS,
-            ));
-        println!("Spawning player");
-        spawn_player(&mut commands, meshes, materials, Vec3::Z, Some(SceneEntity));
-    }
-
-    if let Some(mut camera) = camera.iter_mut().next() {
-        *camera = GameCamera::default();
+        game_scene.spawn(&mut commands, &mut meshes, &mut materials, &asset_server);
     }
 }
+
+#[derive(Resource, Default, Deref, DerefMut)]
+struct ReloadTimerInitialized(bool);
 
 fn reload_on_ground_collision(
     mut set_game_scene: EventWriter<SetGameScene>,
@@ -138,7 +146,7 @@ fn reload_on_ground_collision(
     player: Query<(Entity, Ref<Sleeping>), With<Player>>,
     mut ground: Query<(Entity, &mut Ground), Without<Player>>,
     time: Res<Time>,
-    mut initialized: Local<bool>,
+    mut initialized: ResMut<ReloadTimerInitialized>,
 ) {
     let Some((player_entity, player_sleep)) = player.iter().next() else {
         return;
@@ -150,37 +158,48 @@ fn reload_on_ground_collision(
     // Progress the ground timer if unpaused
     ground.tick(time.delta());
     if ground.just_finished() {
-        if let Some(game_scene) = &game_scene.0 {
-            set_game_scene.send(SetGameScene(game_scene.clone()));
+        if let Some(game_scene) = **game_scene {
+            set_game_scene.send(SetGameScene(game_scene));
         }
         return;
     }
 
     // After first ground collision, wait for player to sleep before resetting
-    if *initialized {
-        if player_sleep.is_changed() {
-            if player_sleep.sleeping {
-                *initialized = false;
-                ground.unpause();
-                ground.reset();
-            }
-        }
+    if **initialized && player_sleep.is_changed() && player_sleep.sleeping {
+        **initialized = false;
+        ground.unpause();
+        ground.reset();
     }
 
-    let entities = vec![player_entity, ground_entity];
+    let entities = [player_entity, ground_entity];
     for collision in ground_collisions.read() {
         match collision {
             // Set initialized to true if player and ground collide
             CollisionEvent::Started(e1, e2, _) => {
-                if entities.contains(&e1) && entities.contains(&e2) {
-                    *initialized = true;
+                if entities.contains(e1) && entities.contains(e2) {
+                    **initialized = true;
                 }
             }
             // Pause the ground timer if player and ground stop colliding
             CollisionEvent::Stopped(e1, e2, _) => {
-                if entities.contains(&e1) && entities.contains(&e2) {
+                if entities.contains(e1) && entities.contains(e2) {
                     ground.pause();
                 }
+            }
+        }
+    }
+}
+
+fn update_distance(
+    mut distance_text: Query<&mut Text, With<DistanceText>>,
+    player: Query<&Transform, With<Player>>,
+    scene: Res<GameScene>,
+) {
+    if let (Some(transform), Some(scene)) = (player.iter().next(), scene.0.as_ref()) {
+        if let Some(mut distance_text) = distance_text.iter_mut().next() {
+            let distance = (transform.translation.xy() - scene.start_pos().xy()).length();
+            if distance > 0.0 {
+                distance_text.sections[0].value = format!("Distance: {:.2} m", distance);
             }
         }
     }
