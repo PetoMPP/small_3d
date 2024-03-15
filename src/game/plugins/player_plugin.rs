@@ -1,5 +1,5 @@
 use crate::{
-    game::plugin::{GameCamera, GameLight},
+    game::components::{GameCamera, GameEntity, GameLight, Player},
     AppState,
 };
 use bevy::{input::mouse::MouseWheel, prelude::*};
@@ -24,50 +24,32 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-#[derive(Component)]
-pub struct Player {
-    pub shots: u32,
-}
-
-impl Default for Player {
-    fn default() -> Self {
-        Self { shots: 1 }
-    }
-}
-
-pub fn spawn_player(
-    commands: &mut Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    pos: Vec3,
-    bundle: Option<impl Bundle>,
-) {
+pub fn spawn_player(commands: &mut Commands, asset_server: &AssetServer, pos: Vec3) {
     const R: f32 = 0.2;
 
-    let mut e = commands.spawn(PbrBundle {
-        mesh: meshes.add(Sphere::new(R)),
-        material: materials.add(Color::RED),
-        transform: Transform::from_translation(pos),
-        ..Default::default()
-    });
-    let e = e.insert((
-        Player::default(),
-        Sleeping::default(),
-        ExternalImpulse::default(),
-        RigidBody::Dynamic,
-        Collider::ball(R),
-        Friction::coefficient(0.6),
-        Damping {
-            linear_damping: 0.5,
-            angular_damping: 0.5,
-        },
-        ColliderMassProperties::Mass(100.0),
-        ActiveEvents::COLLISION_EVENTS,
-        ColliderDebugColor(Color::LIME_GREEN),
-    ));
-    if let Some(bundle) = bundle {
-        e.insert(bundle);
-    }
+    let scene = asset_server.load("models/player.glb#Scene0");
+    commands
+        .spawn(SceneBundle {
+            scene,
+            transform: Transform::from_translation(pos),
+            ..Default::default()
+        })
+        .insert((
+            Player::default(),
+            Sleeping::default(),
+            ExternalImpulse::default(),
+            RigidBody::Dynamic,
+            Collider::ball(R),
+            Friction::coefficient(0.6),
+            Restitution::new(0.3),
+            Damping {
+                linear_damping: 0.5,
+                angular_damping: 0.5,
+            },
+            ColliderMassProperties::Mass(10.0),
+            ActiveEvents::COLLISION_EVENTS,
+            GameEntity,
+        ));
 }
 
 #[derive(Default, Clone, Copy)]
@@ -92,14 +74,13 @@ fn move_player(
     };
 
     for press in presses.read() {
-        match (press.button, press.hit.position, press.hit.normal) {
-            (PointerButton::Primary, Some(position), Some(normal)) => {
-                if press.target == player_entity && player.shots > 0 {
-                    player.shots -= 1;
-                    *current = Some(DragInitInfo { position, normal });
-                }
+        if let (PointerButton::Primary, Some(position), Some(normal)) =
+            (press.button, press.hit.position, press.hit.normal)
+        {
+            if press.target == player_entity && player.shots > 0 {
+                player.shots -= 1;
+                *current = Some(DragInitInfo { position, normal });
             }
-            _ => {}
         }
     }
 
