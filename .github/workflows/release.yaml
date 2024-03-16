@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master    
+
+env:
+  binary: bevy-game
+
+jobs:
+  # Build for wasm
+  release-wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: jetli/trunk-action@v0.1.0
+      - uses: jetli/wasm-bindgen-action@v0.1.0
+
+      - run: trunk build --release
+
+      - uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
