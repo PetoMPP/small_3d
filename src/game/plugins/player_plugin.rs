@@ -167,7 +167,7 @@ fn zoom_camera(
     let mut camera = camera.single_mut();
 
     for scroll in scroll.read() {
-        camera.1.distance -= scroll.y * 0.5;
+        camera.1.distance -= scroll.y.clamp(-1.0, 1.0) * 0.5;
         camera.1.distance = camera.1.distance.clamp(1.0, 25.0);
     }
 }
