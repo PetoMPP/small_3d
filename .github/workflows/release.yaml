@@ -25,6 +25,18 @@ jobs:
 
       - run: trunk build --release
 
+      - uses: jacobtomlinson/gha-find-replace@v3
+        with:
+          find: "\"/"
+          replace: "\"/bevy-game/"
+          include: "dist/*.html"
+
+      - uses: jacobtomlinson/gha-find-replace@v3
+        with:
+          find: "'/"
+          replace: "'/bevy-game/"
+          include: "dist/*.html"
+
       - uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
