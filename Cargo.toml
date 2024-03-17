@@ -16,3 +16,7 @@ bevy = "0.13"
 bevy-inspector-egui = "0.23"
 bevy_mod_picking = "0.18"
 bevy_picking_rapier = "0.18"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo = "0.11"
+web-sys = "0.3"
