@@ -1,6 +1,7 @@
 use super::components::{GameCamera, GameLight};
 use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameScene};
 use super::plugins::player_plugin::PlayerPlugin;
+use super::plugins::user_input_plugin::UserInputPlugin;
 use super::resources::GameSceneData;
 use super::scenes::test::TEST_LEVEL;
 use crate::AppState;
@@ -18,7 +19,7 @@ impl Plugin for GamePlugin {
             .add_plugins(RapierDebugRenderPlugin::default())
             .add_plugins(DefaultPickingPlugins)
             .add_plugins(RapierBackend)
-            .add_plugins((PlayerPlugin, GameScenePlugin))
+            .add_plugins((PlayerPlugin, GameScenePlugin, UserInputPlugin))
             .add_systems(OnEnter(AppState::InGame), start_game);
     }
 }

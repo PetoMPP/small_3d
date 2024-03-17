@@ -1,6 +1,7 @@
+use super::user_input_plugin::{Pressed, UserInput, UserInputPosition};
 use crate::{
     game::components::{GameCamera, GameEntity, GameLight, Player},
-    AppState,
+    log, AppState,
 };
 use bevy::{input::mouse::MouseWheel, prelude::*};
 use bevy_mod_picking::prelude::*;
@@ -53,19 +54,20 @@ pub fn spawn_player(commands: &mut Commands, asset_server: &AssetServer, pos: Ve
 }
 
 #[derive(Default, Clone, Copy)]
-struct DragInitInfo {
-    position: Vec3,
+struct DragInfo {
+    start: Vec3,
     normal: Vec3,
+    end: Vec3,
 }
 
 fn move_player(
     mut gizmos: Gizmos,
     mut player: Query<(&Transform, Entity, &mut Player, &mut ExternalImpulse)>,
     camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
-    windows: Query<&Window>,
-    mouse_input: Res<ButtonInput<MouseButton>>,
-    mut presses: EventReader<Pointer<Down>>,
-    mut current: Local<Option<DragInitInfo>>,
+    user_input_position: Res<UserInputPosition>,
+    user_input: Res<ButtonInput<UserInput>>,
+    mut presses: EventReader<Pointer<Pressed>>,
+    mut current: Local<Option<DragInfo>>,
 ) {
     let (camera, camera_transform) = camera.single();
 
@@ -77,49 +79,61 @@ fn move_player(
         if let (PointerButton::Primary, Some(position), Some(normal)) =
             (press.button, press.hit.position, press.hit.normal)
         {
+            log!("recieved!");
             if press.target == player_entity && player.shots > 0 {
+                log!("player recieved!");
                 player.shots -= 1;
-                *current = Some(DragInitInfo { position, normal });
+                *current = Some(DragInfo {
+                    start: position,
+                    normal,
+                    end: position,
+                });
             }
         }
     }
 
-    let Some(drag_info) = *current else {
-        return;
+    if let Some(cursor_position) = **user_input_position {
+        let Some(drag_info) = &mut *current else {
+            log!("no drag_info!");
+            return;
+        };
+        log!("no cursor!");
+        let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+            log!("no ray!");
+            return;
+        };
+
+        let Some(distance) = ray.intersect_plane(
+            transform
+                .translation
+                .lerp(camera_transform.translation(), 0.5),
+            Plane3d::new(drag_info.normal),
+        ) else {
+            log!("no distance!");
+            return;
+        };
+
+        let point = ray.get_point(distance);
+        drag_info.end = point;
     };
 
-    let Some(cursor_position) = windows.single().cursor_position() else {
-        return;
-    };
-
-    let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
-        return;
-    };
-
-    let Some(distance) = ray.intersect_plane(
-        transform
-            .translation
-            .lerp(camera_transform.translation(), 0.5),
-        Plane3d::new(drag_info.normal),
-    ) else {
-        return;
-    };
-
-    let point = ray.get_point(distance);
-
-    if mouse_input.just_released(MouseButton::Left) {
-        let push = (drag_info.position - point) * 100.0;
-        println!("Pushing with {:?}", push);
-        *impulse = ExternalImpulse::at_point(push, drag_info.position, transform.translation);
-        *current = None;
+    if user_input.just_released(UserInput(PointerButton::Primary)) {
+        if let Some(drag_info) = *current {
+            let push = (drag_info.start - drag_info.end) * 100.0;
+            log!("Pushing with {:?}", push);
+            *impulse = ExternalImpulse::at_point(push, drag_info.start, transform.translation);
+            *current = None;
+        }
     }
 
-    if mouse_input.pressed(MouseButton::Left) {
+    if user_input.pressed(UserInput(PointerButton::Primary)) {
         if impulse.is_changed() {
             impulse.bypass_change_detection();
             impulse.reset();
         }
-        gizmos.line(drag_info.position, point, Color::WHITE);
+        if let Some(drag_info) = *current {
+            gizmos.line(drag_info.start, drag_info.end, Color::WHITE);
+        }
     }
 }
 
