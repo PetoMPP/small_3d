@@ -20,3 +20,6 @@ bevy_picking_rapier = "0.18"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo = "0.11"
 web-sys = "0.3"
+
+[lints.clippy]
+type-complexity="allow"

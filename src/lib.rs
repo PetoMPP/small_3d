@@ -1,9 +1,5 @@
 use crate::main_menu::main_menu_plugin::MainMenuPlugin;
-use bevy::{
-    asset::AssetMetaCheck,
-    prelude::*,
-    window::{WindowMode, WindowResolution},
-};
+use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowMode};
 use game::game_plugin::GamePlugin;
 use resources::Fonts;
 
@@ -52,14 +48,14 @@ fn app() -> App {
         .init_state::<AppState>()
         .add_plugins(MainMenuPlugin)
         .add_plugins(GamePlugin);
-    
+
     app
 }
 
 #[cfg(target_arch = "wasm32")]
 fn update_resolution(
     mut windows: Query<&mut Window, Changed<Window>>,
-    mut applied: Local<WindowResolution>,
+    mut applied: Local<bevy::window::WindowResolution>,
 ) {
     if let Some(mut window) = windows.iter_mut().next() {
         if *applied == window.resolution {
