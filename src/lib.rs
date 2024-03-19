@@ -26,10 +26,7 @@ pub enum AppState {
 }
 
 pub fn run() {
-    let mut app = app();
-    #[cfg(target_arch = "wasm32")]
-    app.add_systems(Update, update_resolution);
-    app.run();
+    app().run();
 }
 
 fn app() -> App {
@@ -50,31 +47,6 @@ fn app() -> App {
         .add_plugins(GamePlugin);
 
     app
-}
-
-#[cfg(target_arch = "wasm32")]
-fn update_resolution(
-    mut windows: Query<&mut Window, Changed<Window>>,
-    mut applied: Local<bevy::window::WindowResolution>,
-) {
-    if let Some(mut window) = windows.iter_mut().next() {
-        if *applied == window.resolution {
-            return;
-        }
-        *applied = window.resolution.clone();
-        let size = web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("canvas")
-            .unwrap()
-            .get_bounding_client_rect();
-        let scale_factor = window.scale_factor();
-        window.resolution.set_physical_resolution(
-            (size.width() as f32 * scale_factor) as u32,
-            (size.height() as f32 * scale_factor) as u32,
-        );
-    }
 }
 
 fn get_window_mode() -> WindowMode {
