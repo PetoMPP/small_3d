@@ -1,9 +1,11 @@
+use crate::common::plugins::user_input_plugin::UserInputPlugin;
 use crate::main_menu::main_menu_plugin::MainMenuPlugin;
-use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowMode};
+use bevy::{asset::AssetMetaCheck, prelude::*};
 use game::game_plugin::GamePlugin;
 use resources::Fonts;
 
-pub mod game;
+mod common;
+mod game;
 mod main_menu;
 mod resources;
 
@@ -35,7 +37,6 @@ fn app() -> App {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Game".to_string(),
-                mode: get_window_mode(),
                 canvas: Some("#canvas".to_string()),
                 ..Default::default()
             }),
@@ -44,14 +45,8 @@ fn app() -> App {
         .init_resource::<Fonts>()
         .init_state::<AppState>()
         .add_plugins(MainMenuPlugin)
-        .add_plugins(GamePlugin);
+        .add_plugins(GamePlugin)
+        .add_plugins(UserInputPlugin);
 
     app
-}
-
-fn get_window_mode() -> WindowMode {
-    #[cfg(target_arch = "wasm32")]
-    return WindowMode::Fullscreen;
-    #[cfg(not(target_arch = "wasm32"))]
-    return WindowMode::default();
 }

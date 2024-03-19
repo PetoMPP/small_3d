@@ -1,4 +1,4 @@
-use super::user_input_plugin::{Pressed, UserInput, UserInputPosition};
+use crate::common::plugins::user_input_plugin::{Pressed, UserInput, UserInputPosition};
 use crate::{
     game::components::{GameCamera, GameEntity, GameLight, Player},
     log, AppState,
