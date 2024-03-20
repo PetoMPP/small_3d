@@ -3,6 +3,9 @@ name = "small_3d"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate_type=["staticlib", "cdylib"]
+
 # Enable a small amount of optimization in debug mode
 [profile.dev]
 opt-level = 1
@@ -10,6 +13,16 @@ opt-level = 1
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
 [profile.dev.package."*"]
 opt-level = 3
+
+[package.metadata.android]
+package = "com.petompp.small_3d"
+build_targets = ["armv7-linux-androideabi"]
+assets = "assets"
+apk_name = "small_3d"
+strip = "strip"
+
+[package.metadata.android.sdk]
+target_sdk_version = 34
 
 [dependencies]
 bevy = "0.13.1"
