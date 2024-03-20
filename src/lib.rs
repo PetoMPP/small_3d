@@ -25,7 +25,8 @@ pub enum AppState {
     InGame,
 }
 
-pub fn run() {
+#[bevy_main]
+pub fn main() {
     let mut app = app();
     #[cfg(target_arch = "wasm32")]
     app.add_systems(Update, update_resolution);

@@ -3,6 +3,9 @@ name = "small_3d"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate_type=["staticlib", "cdylib"]
+
 # Enable a small amount of optimization in debug mode
 [profile.dev]
 opt-level = 1
@@ -11,9 +14,19 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
+[package.metadata.android]
+package = "com.petompp.small_3d"
+build_targets = ["armv7-linux-androideabi"]
+assets = "assets"
+apk_name = "small_3d"
+strip = "strip"
+
+[package.metadata.android.sdk]
+target_sdk_version = 34
+
 [dependencies]
-bevy = "0.13"
-bevy-inspector-egui = "0.23"
+bevy = "0.13.0"
+# bevy-inspector-egui = "0.23"
 bevy_mod_picking = "0.18"
 bevy_picking_rapier = "0.18"
 
@@ -22,4 +35,4 @@ gloo = "0.11"
 web-sys = "0.3"
 
 [lints.clippy]
-type-complexity="allow"
+type-complexity = "allow"
