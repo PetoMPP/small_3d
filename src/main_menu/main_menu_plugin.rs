@@ -1,6 +1,8 @@
+use crate::common::plugins::user_input_plugin::Pressed;
 use crate::{AppState, Fonts};
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
+use bevy_mod_picking::events::Pointer;
 
 pub struct MainMenuPlugin;
 
@@ -14,8 +16,9 @@ impl Plugin for MainMenuPlugin {
 fn set_in_game(
     mut next_state: ResMut<NextState<AppState>>,
     mut key_event: EventReader<KeyboardInput>,
+    mut press_event: EventReader<Pointer<Pressed>>,
 ) {
-    let Some(_) = key_event.read().next() else {
+    if key_event.read().next().is_none() && press_event.read().next().is_none() {
         return;
     };
     next_state.set(AppState::InGame);
@@ -46,7 +49,7 @@ fn init_main_menu(mut commands: Commands, fonts: Res<Fonts>) {
         .with_children(|root| {
             root.spawn(TextBundle {
                 text: Text::from_section(
-                    "Press any key to start..",
+                    "Press to start..",
                     TextStyle {
                         font: fonts.regular.clone(),
                         font_size: 60.0,
