@@ -16,7 +16,7 @@ impl GameCamera {
     }
 
     pub fn distance(&mut self, distance: f32) {
-        self.distance = distance.clamp(1.0, 25.0);
+        self.distance = (self.distance + distance).clamp(1.0, 25.0);
     }
 
     pub fn get_offset(&self) -> Vec2 {
