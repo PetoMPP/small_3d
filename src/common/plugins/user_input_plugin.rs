@@ -1,4 +1,3 @@
-use crate::log;
 use bevy::{
     input::{mouse::mouse_button_input_system, touch::Touch},
     prelude::*,
@@ -6,9 +5,8 @@ use bevy::{
 use bevy_mod_picking::{
     backend::HitData,
     events::{Down, Pointer},
-    focus::HoverMap,
     input::touch::touch_pick_events,
-    pointer::{InputPress, PointerButton, PointerId, PointerLocation, PointerMap, PressDirection},
+    pointer::PointerButton,
 };
 
 pub struct UserInputPlugin;
@@ -42,19 +40,15 @@ impl ToFromPointer<Down> for Pressed {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UserInput(pub PointerButton);
+pub struct UserInput;
 
 #[derive(Debug, Resource, Clone, Copy, Default, Deref, DerefMut)]
 pub struct UserInputPosition(pub Option<Vec2>);
-
-#[derive(Debug, Resource, Default, Deref, DerefMut)]
-pub struct TouchOffset(pub Vec2);
 
 impl Plugin for UserInputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ButtonInput<UserInput>>()
             .init_resource::<UserInputPosition>()
-            .init_resource::<TouchOffset>()
             .add_event::<Pointer<Pressed>>()
             .add_systems(
                 PreUpdate,
@@ -88,17 +82,19 @@ fn handle_input_state_touch(
             if touch_input.just_released(touch.id()) {
                 *curr_touch = None;
                 **user_input_position = None;
-                user_input.release(UserInput(PointerButton::Primary));
+                user_input.release(UserInput);
+                return;
             }
-            let new_touch = touch_input.get_pressed(touch.id());
-            *curr_touch = new_touch.copied();
-            **user_input_position = new_touch.map(|t| t.position());
+            if let Some(new_touch) = touch_input.get_pressed(touch.id()) {
+                *curr_touch = Some(*new_touch);
+                **user_input_position = Some(new_touch.position());
+            }
         }
         None => {
             if let Some(touch) = touch_input.iter_just_pressed().next() {
                 *curr_touch = Some(*touch);
                 **user_input_position = Some(touch.position());
-                user_input.press(UserInput(PointerButton::Primary));
+                user_input.press(UserInput);
             }
         }
     }
@@ -111,13 +107,13 @@ fn handle_input_state_mouse(
     windows: Query<&Window>,
 ) {
     if input.just_released(MouseButton::Left) {
-        user_input.release(UserInput(PointerButton::Primary));
+        user_input.release(UserInput);
         **user_input_position = None;
         return;
     }
 
     if input.just_pressed(MouseButton::Left) {
-        user_input.press(UserInput(PointerButton::Primary));
+        user_input.press(UserInput);
     }
     if input.pressed(MouseButton::Left) {
         **user_input_position = windows
@@ -129,45 +125,9 @@ fn handle_input_state_mouse(
 
 fn handle_pressed(
     mut down_reader: EventReader<Pointer<Down>>,
-    mut input_reader: EventReader<InputPress>,
     mut pressed_writer: EventWriter<Pointer<Pressed>>,
-    pointers: Query<&PointerLocation>,
-    pointer_map: Res<PointerMap>,
-    hover_map: Res<HoverMap>,
 ) {
-    let pointer_location = |pointer_id: PointerId| {
-        pointer_map
-            .get_entity(pointer_id)
-            .and_then(|entity| pointers.get(entity).ok())
-            .and_then(|pointer| pointer.location.clone())
-    };
-
     for down in down_reader.read() {
         pressed_writer.send(Pressed::to_from_pointer(down.clone()));
-    }
-
-    for input in input_reader.read() {
-        for (entity, hit) in hover_map
-            .get(&input.pointer_id)
-            .iter()
-            .flat_map(|hm| hm.iter())
-        {
-            log!("hit {:?}", hit);
-            if let PressDirection::Down = input.direction {
-                let Some(location) = pointer_location(input.pointer_id) else {
-                    log!("no location!");
-                    continue;
-                };
-                pressed_writer.send(Pointer::new(
-                    input.pointer_id,
-                    location,
-                    *entity,
-                    Pressed {
-                        button: input.button,
-                        hit: hit.clone(),
-                    },
-                ));
-            }
-        }
     }
 }

@@ -1,13 +1,34 @@
 use bevy::prelude::*;
-use std::f32::consts::PI;
+use std::f32::{consts::PI, EPSILON};
 
 #[derive(Component, Clone, Copy)]
 pub struct GameEntity;
 
 #[derive(Component)]
 pub struct GameCamera {
-    pub distance: f32,
-    pub offset: Vec2,
+    distance: f32,
+    offset: Vec2,
+}
+
+impl GameCamera {
+    pub fn get_distance(&self) -> f32 {
+        self.distance
+    }
+
+    pub fn distance(&mut self, distance: f32) {
+        self.distance = distance.clamp(1.0, 25.0);
+    }
+
+    pub fn get_offset(&self) -> Vec2 {
+        self.offset
+    }
+
+    pub fn offset(&mut self, offset: Vec2) {
+        self.offset = Vec2::new(
+            self.offset.x + offset.x,
+            (self.offset.y + offset.y).clamp(0.0 + EPSILON, PI - EPSILON),
+        );
+    }
 }
 
 impl Default for GameCamera {
