@@ -48,12 +48,11 @@ fn app() -> App {
 }
 
 fn get_window() -> Window {
-    let mut window = Window::default();
-    window.title = "Small 3D".to_string();
     #[cfg(target_arch = "wasm32")]
-    {
-        window.canvas = Some("#canvas".to_string());
-        window.resolution = {
+    return Window {
+        title: "Small 3D".to_string(),
+        canvas: Some("#canvas".to_string()),
+        resolution: {
             let width = web_sys::window()
                 .unwrap()
                 .inner_width()
@@ -67,7 +66,12 @@ fn get_window() -> Window {
                 .as_f64()
                 .unwrap() as f32;
             bevy::window::WindowResolution::new(width, height)
-        };
-    }
-    window
+        },
+        ..Default::default()
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    return Window {
+        title: "Small 3D".to_string(),
+        ..Default::default()
+    };
 }
