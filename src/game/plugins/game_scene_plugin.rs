@@ -91,7 +91,7 @@ fn spawn_distance_text(mut commands: Commands, text_styles: Res<TextStyles>) {
     const GAME_MANUAL_TEXT: &str = "\
     Drag the ball to launch it\n\
     Swipe to rotate the camera\n\
-    Middle mouse to zoom camera\n\
+    Pinch to zoom camera\n\
     Press R to reset the level";
 
     println!("Spawning distance text");
