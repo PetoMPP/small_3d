@@ -35,11 +35,7 @@ fn app() -> App {
     let mut app = App::new();
     app.insert_resource(AssetMetaCheck::Never)
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Game".to_string(),
-                canvas: Some("#canvas".to_string()),
-                ..Default::default()
-            }),
+            primary_window: Some(get_window()),
             ..Default::default()
         }))
         .init_resource::<Fonts>()
@@ -49,4 +45,30 @@ fn app() -> App {
         .add_plugins(UserInputPlugin);
 
     app
+}
+
+fn get_window() -> Window {
+    #[cfg(target_arch = "wasm32")]
+    return Window {
+        title: "Game".to_string(),
+        canvas: Some("#canvas".to_string()),
+        resolution: {
+            let width = web_sys::window()
+                .unwrap()
+                .inner_width()
+                .unwrap()
+                .as_f64()
+                .unwrap() as f32;
+            let height = web_sys::window()
+                .unwrap()
+                .inner_height()
+                .unwrap()
+                .as_f64()
+                .unwrap() as f32;
+            bevy::window::WindowResolution::new(width, height)
+        },
+        ..Default::default()
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    return Window::default();
 }

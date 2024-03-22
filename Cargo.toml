@@ -12,7 +12,7 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
-bevy = "0.13"
+bevy = "0.13.1"
 bevy-inspector-egui = "0.23"
 bevy_mod_picking = "0.18"
 bevy_picking_rapier = "0.18"
