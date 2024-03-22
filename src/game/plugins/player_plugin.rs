@@ -179,11 +179,48 @@ fn move_camera_and_light(
 fn zoom_camera(
     mut camera: Query<(&Transform, &mut GameCamera)>,
     mut scroll: EventReader<MouseWheel>,
+    user_input: Res<Inputs<UserInput>>,
+    user_input_position: Res<UserInputPosition>,
+    mut current: Local<Option<((u64, u64), f32)>>,
 ) {
     let mut camera = camera.single_mut();
 
     for scroll in scroll.read() {
         camera.1.distance(-scroll.y.clamp(-1.0, 1.0) * 0.5);
+    }
+
+    let Some(((first, second), dist)) = current.or_else(|| {
+        let mut iter = user_input.iter_pressed();
+        let first = **iter.next()?;
+        let second = **iter.next()?;
+        let dist = user_input_position
+            .get(first)?
+            .distance_squared(user_input_position.get(second)?);
+        Some(((first, second), dist))
+    }) else {
+        return;
+    };
+
+    if user_input.just_released(UserInput(first)) || user_input.just_released(UserInput(second)) {
+        *current = None;
+        return;
+    }
+
+    if user_input.pressed(UserInput(first)) && user_input.pressed(UserInput(second)) {
+        let new_dist = user_input_position
+            .get(first)
+            .and_then(|first| {
+                user_input_position
+                    .get(second)
+                    .map(|second| first.distance_squared(second))
+            })
+            .unwrap_or(dist);
+
+        let delta = new_dist - dist;
+        *current = Some(((first, second), new_dist));
+        if delta.abs() > 4.0 {
+            camera.1.distance(-delta.clamp(-1.0, 1.0) * 0.25);
+        }
     }
 }
 
@@ -201,7 +238,7 @@ fn rotate_camera(
         return;
     };
 
-    if user_input.just_released(UserInput(id)) {
+    if user_input.just_released(UserInput(id)) || user_input.iter_pressed().count() > 1 {
         *last_point = None;
         return;
     }
