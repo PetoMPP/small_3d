@@ -1,5 +1,6 @@
 use crate::common::plugins::user_input_plugin::Pressed;
-use crate::{AppState, Fonts};
+use crate::resources::{FontSize, FontType};
+use crate::{AppState, TextStyles};
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 use bevy_mod_picking::events::Pointer;
@@ -30,7 +31,7 @@ struct MenuCamera;
 #[derive(Component)]
 struct MenuNode;
 
-fn init_main_menu(mut commands: Commands, fonts: Res<Fonts>) {
+fn init_main_menu(mut commands: Commands, text_styles: Res<TextStyles>) {
     commands.spawn((Camera2dBundle::default(), MenuCamera));
     commands
         .spawn((
@@ -50,11 +51,7 @@ fn init_main_menu(mut commands: Commands, fonts: Res<Fonts>) {
             root.spawn(TextBundle {
                 text: Text::from_section(
                     "Press to start..",
-                    TextStyle {
-                        font: fonts.regular.clone(),
-                        font_size: 60.0,
-                        color: Color::WHITE,
-                    },
+                    text_styles.get(FontType::Regular, FontSize::Large, Color::WHITE),
                 ),
                 ..Default::default()
             });

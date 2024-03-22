@@ -2,7 +2,7 @@ use crate::common::plugins::user_input_plugin::UserInputPlugin;
 use crate::main_menu::main_menu_plugin::MainMenuPlugin;
 use bevy::{asset::AssetMetaCheck, prelude::*};
 use game::game_plugin::GamePlugin;
-use resources::Fonts;
+use resources::TextStyles;
 
 mod common;
 mod game;
@@ -38,7 +38,7 @@ fn app() -> App {
             primary_window: Some(get_window()),
             ..Default::default()
         }))
-        .init_resource::<Fonts>()
+        .init_resource::<TextStyles>()
         .init_state::<AppState>()
         .add_plugins(MainMenuPlugin)
         .add_plugins(GamePlugin)
@@ -48,11 +48,12 @@ fn app() -> App {
 }
 
 fn get_window() -> Window {
+    let mut window = Window::default();
+    window.title = "Small 3D".to_string();
     #[cfg(target_arch = "wasm32")]
-    return Window {
-        title: "Game".to_string(),
-        canvas: Some("#canvas".to_string()),
-        resolution: {
+    {
+        window.canvas = Some("#canvas".to_string());
+        window.resolution = {
             let width = web_sys::window()
                 .unwrap()
                 .inner_width()
@@ -66,9 +67,7 @@ fn get_window() -> Window {
                 .as_f64()
                 .unwrap() as f32;
             bevy::window::WindowResolution::new(width, height)
-        },
-        ..Default::default()
-    };
-    #[cfg(not(target_arch = "wasm32"))]
-    return Window::default();
+        };
+    }
+    window
 }
