@@ -3,7 +3,8 @@ use crate::{
         components::{GameCamera, GameEntity, Ground, Player},
         resources::{GameScene, GameSceneData},
     },
-    AppState, Fonts,
+    resources::{FontSize, FontType},
+    AppState, TextStyles,
 };
 use bevy::{input::keyboard::KeyboardInput, prelude::*};
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
@@ -85,7 +86,7 @@ fn reset_state(
 #[derive(Component)]
 struct DistanceText;
 
-fn spawn_distance_text(mut commands: Commands, fonts: Res<Fonts>) {
+fn spawn_distance_text(mut commands: Commands, text_styles: Res<TextStyles>) {
     // Text to describe the controls.
     const GAME_MANUAL_TEXT: &str = "\
     Left drag to launch the ball\n\
@@ -110,11 +111,7 @@ fn spawn_distance_text(mut commands: Commands, fonts: Res<Fonts>) {
                 TextBundle {
                     text: Text::from_section(
                         GAME_MANUAL_TEXT,
-                        TextStyle {
-                            font: fonts.regular.clone(),
-                            font_size: 60.0,
-                            color: Color::WHITE,
-                        },
+                        text_styles.get(FontType::Regular, FontSize::Medium, Color::WHITE),
                     ),
                     ..Default::default()
                 },
