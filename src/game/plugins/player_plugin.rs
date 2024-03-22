@@ -1,4 +1,5 @@
 use crate::common::plugins::user_input_plugin::{Pressed, UserInput, UserInputPosition};
+use crate::resources::Inputs;
 use crate::{
     game::components::{GameCamera, GameEntity, GameLight, Player},
     log, AppState,
@@ -60,6 +61,7 @@ struct DragInfoData {
     start: Vec3,
     normal: Vec3,
     end: Vec3,
+    user_input: UserInput,
 }
 
 fn move_player(
@@ -67,7 +69,7 @@ fn move_player(
     mut player: Query<(&Transform, Entity, &mut Player, &mut ExternalImpulse)>,
     camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
     user_input_position: Res<UserInputPosition>,
-    user_input: Res<ButtonInput<UserInput>>,
+    user_input: Res<Inputs<UserInput>>,
     mut presses: EventReader<Pointer<Pressed>>,
     mut drag_info: ResMut<DragInfo>,
 ) {
@@ -77,29 +79,32 @@ fn move_player(
         return;
     };
 
+    if user_input.iter_pressed().count() > 1 {
+        **drag_info = None;
+        return;
+    }
+
     for press in presses.read() {
-        if let (PointerButton::Primary, Some(position), Some(normal)) =
-            (press.button, press.hit.position, press.hit.normal)
+        if let (user_input, Some(position), Some(normal)) =
+            (press.user_input, press.hit.position, press.hit.normal)
         {
-            log!("recieved!");
             if press.target == player_entity && player.shots > 0 {
-                log!("player recieved!");
-                player.shots -= 1;
                 **drag_info = Some(DragInfoData {
                     start: position,
                     normal,
                     end: position,
+                    user_input,
                 });
             }
         }
     }
 
-    if let Some(cursor_position) = **user_input_position {
-        let Some(drag_info) = &mut **drag_info else {
-            log!("no drag_info!");
-            return;
-        };
-        log!("no cursor!");
+    let Some(drag_info_data) = &mut **drag_info else {
+        log!("no drag_info!");
+        return;
+    };
+
+    if let Some(cursor_position) = user_input_position.get(*drag_info_data.user_input) {
         let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
             log!("no ray!");
             return;
@@ -109,33 +114,31 @@ fn move_player(
             transform
                 .translation
                 .lerp(camera_transform.translation(), 0.5),
-            Plane3d::new(drag_info.normal),
+            Plane3d::new(drag_info_data.normal),
         ) else {
             log!("no distance!");
             return;
         };
 
         let point = ray.get_point(distance);
-        drag_info.end = point;
+        drag_info_data.end = point;
     };
 
-    if user_input.just_released(UserInput) {
-        if let Some(drag_info_data) = **drag_info {
-            let push = (drag_info_data.start - drag_info_data.end) * 100.0;
-            log!("Pushing with {:?}", push);
-            *impulse = ExternalImpulse::at_point(push, drag_info_data.start, transform.translation);
-            **drag_info = None;
-        }
+    if user_input.just_released(drag_info_data.user_input) {
+        player.shots -= 1;
+        let push = (drag_info_data.start - drag_info_data.end) * 100.0;
+        log!("Pushing with {:?}", push);
+        *impulse = ExternalImpulse::at_point(push, drag_info_data.start, transform.translation);
+        **drag_info = None;
+        return;
     }
 
-    if user_input.pressed(UserInput) {
+    if user_input.pressed(drag_info_data.user_input) {
         if impulse.is_changed() {
             impulse.bypass_change_detection();
             impulse.reset();
         }
-        if let Some(drag_info) = **drag_info {
-            gizmos.line(drag_info.start, drag_info.end, Color::WHITE);
-        }
+        gizmos.line(drag_info_data.start, drag_info_data.end, Color::WHITE);
     }
 }
 
@@ -186,29 +189,46 @@ fn zoom_camera(
 
 fn rotate_camera(
     mut camera: Query<&mut GameCamera>,
-    user_input: Res<ButtonInput<UserInput>>,
+    user_input: Res<Inputs<UserInput>>,
     user_input_position: Res<UserInputPosition>,
     drag_info: Res<DragInfo>,
-    mut last_point: Local<Vec2>,
+    mut last_point: Local<Option<(u64, Vec2)>>,
 ) {
-    if drag_info.is_some() {
+    let Some((id, last_pos)) = last_point
+        .map(|l| (l.0, Some(l.1)))
+        .or_else(|| user_input.iter_just_pressed().next().map(|u| (u.0, None)))
+    else {
+        return;
+    };
+
+    if user_input.just_released(UserInput(id)) {
+        *last_point = None;
+        return;
+    }
+
+    if drag_info.is_changed() && drag_info.is_some() {
+        *last_point = None;
         return;
     }
 
     let mut camera = camera.single_mut();
 
-    let Some(cursor_position) = **user_input_position else {
+    let Some(cursor_position) = user_input_position.get(id) else {
         return;
     };
 
-    if user_input.just_pressed(UserInput) {
-        *last_point = cursor_position;
+    if user_input.just_pressed(UserInput(id)) {
+        *last_point = Some((id, cursor_position));
         return;
     }
 
-    if user_input.pressed(UserInput) {
-        let delta = cursor_position - *last_point;
-        *last_point = cursor_position;
+    let Some(last_pos) = last_pos else {
+        return;
+    };
+
+    if user_input.pressed(UserInput(id)) {
+        let delta = cursor_position - last_pos;
+        *last_point = Some((id, cursor_position));
         camera.offset(Vec2::new(delta.x, -delta.y) * 0.02);
     }
 }

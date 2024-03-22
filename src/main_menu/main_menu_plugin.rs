@@ -1,9 +1,8 @@
-use crate::common::plugins::user_input_plugin::Pressed;
-use crate::resources::{FontSize, FontType};
+use crate::common::plugins::user_input_plugin::UserInput;
+use crate::resources::{FontSize, FontType, Inputs};
 use crate::{AppState, TextStyles};
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
-use bevy_mod_picking::events::Pointer;
 
 pub struct MainMenuPlugin;
 
@@ -17,9 +16,9 @@ impl Plugin for MainMenuPlugin {
 fn set_in_game(
     mut next_state: ResMut<NextState<AppState>>,
     mut key_event: EventReader<KeyboardInput>,
-    mut press_event: EventReader<Pointer<Pressed>>,
+    user_input: Res<Inputs<UserInput>>,
 ) {
-    if key_event.read().next().is_none() && press_event.read().next().is_none() {
+    if key_event.read().next().is_none() && user_input.iter_just_pressed().next().is_none() {
         return;
     };
     next_state.set(AppState::InGame);
