@@ -6,13 +6,12 @@ use crate::{
 use bevy::{input::mouse::MouseWheel, prelude::*};
 use bevy_mod_picking::prelude::*;
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
-use std::f32::{consts::PI, EPSILON};
 
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.init_resource::<DragInfo>().add_systems(
             Update,
             (
                 move_player,
@@ -53,8 +52,11 @@ pub fn spawn_player(commands: &mut Commands, asset_server: &AssetServer, pos: Ve
         ));
 }
 
-#[derive(Default, Clone, Copy)]
-struct DragInfo {
+#[derive(Resource, Default, Deref, DerefMut, Clone, Copy)]
+struct DragInfo(Option<DragInfoData>);
+
+#[derive(Debug, Clone, Copy)]
+struct DragInfoData {
     start: Vec3,
     normal: Vec3,
     end: Vec3,
@@ -67,7 +69,7 @@ fn move_player(
     user_input_position: Res<UserInputPosition>,
     user_input: Res<ButtonInput<UserInput>>,
     mut presses: EventReader<Pointer<Pressed>>,
-    mut current: Local<Option<DragInfo>>,
+    mut drag_info: ResMut<DragInfo>,
 ) {
     let (camera, camera_transform) = camera.single();
 
@@ -83,7 +85,7 @@ fn move_player(
             if press.target == player_entity && player.shots > 0 {
                 log!("player recieved!");
                 player.shots -= 1;
-                *current = Some(DragInfo {
+                **drag_info = Some(DragInfoData {
                     start: position,
                     normal,
                     end: position,
@@ -93,7 +95,7 @@ fn move_player(
     }
 
     if let Some(cursor_position) = **user_input_position {
-        let Some(drag_info) = &mut *current else {
+        let Some(drag_info) = &mut **drag_info else {
             log!("no drag_info!");
             return;
         };
@@ -117,21 +119,21 @@ fn move_player(
         drag_info.end = point;
     };
 
-    if user_input.just_released(UserInput(PointerButton::Primary)) {
-        if let Some(drag_info) = *current {
-            let push = (drag_info.start - drag_info.end) * 100.0;
+    if user_input.just_released(UserInput) {
+        if let Some(drag_info_data) = **drag_info {
+            let push = (drag_info_data.start - drag_info_data.end) * 100.0;
             log!("Pushing with {:?}", push);
-            *impulse = ExternalImpulse::at_point(push, drag_info.start, transform.translation);
-            *current = None;
+            *impulse = ExternalImpulse::at_point(push, drag_info_data.start, transform.translation);
+            **drag_info = None;
         }
     }
 
-    if user_input.pressed(UserInput(PointerButton::Primary)) {
+    if user_input.pressed(UserInput) {
         if impulse.is_changed() {
             impulse.bypass_change_detection();
             impulse.reset();
         }
-        if let Some(drag_info) = *current {
+        if let Some(drag_info) = **drag_info {
             gizmos.line(drag_info.start, drag_info.end, Color::WHITE);
         }
     }
@@ -155,14 +157,11 @@ fn move_camera_and_light(
     }
 
     // move camera and light
-    let camera_dist = camera_comp.distance;
+    let camera_dist = camera_comp.get_distance();
     let mut light = light.single_mut();
 
-    let ang_x = camera_comp.offset.x;
-    let ang_z = camera_comp.offset.y;
-
-    let rotation = Quat::from_rotation_z(ang_x)
-        * Quat::from_rotation_x(ang_z.clamp(0.0 + EPSILON, PI - EPSILON));
+    let offset = camera_comp.get_offset();
+    let rotation = Quat::from_rotation_z(offset.x) * Quat::from_rotation_x(offset.y);
 
     *camera_trans = Transform::from_translation(
         moved_player.translation + rotation.mul_vec3(Vec3::Z * camera_dist),
@@ -181,33 +180,35 @@ fn zoom_camera(
     let mut camera = camera.single_mut();
 
     for scroll in scroll.read() {
-        camera.1.distance -= scroll.y.clamp(-1.0, 1.0) * 0.5;
-        camera.1.distance = camera.1.distance.clamp(1.0, 25.0);
+        camera.1.distance(-scroll.y.clamp(-1.0, 1.0) * 0.5);
     }
 }
 
 fn rotate_camera(
-    mut camera: Query<(&Transform, &mut GameCamera)>,
-    windows: Query<&Window>,
-    mouse_input: Res<ButtonInput<MouseButton>>,
+    mut camera: Query<&mut GameCamera>,
+    user_input: Res<ButtonInput<UserInput>>,
+    user_input_position: Res<UserInputPosition>,
+    drag_info: Res<DragInfo>,
     mut last_point: Local<Vec2>,
 ) {
+    if drag_info.is_some() {
+        return;
+    }
+
     let mut camera = camera.single_mut();
 
-    let single = windows.single();
-    let Some(cursor_position) = single.cursor_position() else {
+    let Some(cursor_position) = **user_input_position else {
         return;
     };
 
-    if mouse_input.just_pressed(MouseButton::Middle) {
+    if user_input.just_pressed(UserInput) {
         *last_point = cursor_position;
         return;
     }
 
-    if mouse_input.pressed(MouseButton::Middle) {
+    if user_input.pressed(UserInput) {
         let delta = cursor_position - *last_point;
         *last_point = cursor_position;
-        camera.1.offset.x += delta.x * 0.02;
-        camera.1.offset.y -= delta.y * 0.02;
+        camera.offset(Vec2::new(delta.x, -delta.y) * 0.02);
     }
 }

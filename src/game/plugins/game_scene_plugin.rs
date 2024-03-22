@@ -89,8 +89,9 @@ struct DistanceText;
 fn spawn_distance_text(mut commands: Commands, text_styles: Res<TextStyles>) {
     // Text to describe the controls.
     const GAME_MANUAL_TEXT: &str = "\
-    Left drag to launch the ball\n\
-    Middle mouse to zoom/rotate camera\n\
+    Drag the ball to launch it\n\
+    Swipe to rotate the camera\n\
+    Middle mouse to zoom camera\n\
     Press R to reset the level";
 
     println!("Spawning distance text");
