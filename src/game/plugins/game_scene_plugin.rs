@@ -1,3 +1,4 @@
+use super::aiming_plugin::DragInfo;
 use crate::{
     game::{
         components::{GameCamera, GameEntity, Ground, Player},
@@ -67,6 +68,7 @@ fn reset_state(
     mut commands: Commands,
     mut camera: Query<&mut GameCamera>,
     mut timer_initialized: ResMut<ReloadTimerInitialized>,
+    mut drag_info: ResMut<DragInfo>,
     entities: Query<(Entity, &GameEntity)>,
 ) {
     println!("Clearing game entities");
@@ -81,6 +83,9 @@ fn reset_state(
 
     // Reset reload timer
     **timer_initialized = false;
+
+    // Reset drag info
+    **drag_info = None;
 }
 
 #[derive(Component)]

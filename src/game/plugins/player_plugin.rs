@@ -1,26 +1,21 @@
-use crate::common::plugins::user_input_plugin::{Pressed, UserInput, UserInputPosition};
+use super::aiming_plugin::DragInfo;
+use crate::common::plugins::user_input_plugin::{UserInput, UserInputPosition};
+use crate::game::plugins::aiming_plugin::spawn_arrow;
 use crate::resources::Inputs;
 use crate::{
     game::components::{GameCamera, GameEntity, GameLight, Player},
-    log, AppState,
+    AppState,
 };
 use bevy::{input::mouse::MouseWheel, prelude::*};
-use bevy_mod_picking::prelude::*;
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DragInfo>().add_systems(
+        app.add_systems(
             Update,
-            (
-                move_player,
-                move_camera_and_light,
-                zoom_camera,
-                rotate_camera,
-            )
-                .run_if(in_state(AppState::InGame)),
+            (move_camera_and_light, zoom_camera, rotate_camera).run_if(in_state(AppState::InGame)),
         );
     }
 }
@@ -28,10 +23,10 @@ impl Plugin for PlayerPlugin {
 pub fn spawn_player(commands: &mut Commands, asset_server: &AssetServer, pos: Vec3) {
     const R: f32 = 0.2;
 
-    let scene = asset_server.load("models/player.glb#Scene0");
+    let player_scene = asset_server.load("models/player.glb#Scene0");
     commands
         .spawn(SceneBundle {
-            scene,
+            scene: player_scene,
             transform: Transform::from_translation(pos),
             ..Default::default()
         })
@@ -51,95 +46,7 @@ pub fn spawn_player(commands: &mut Commands, asset_server: &AssetServer, pos: Ve
             ActiveEvents::COLLISION_EVENTS,
             GameEntity,
         ));
-}
-
-#[derive(Resource, Default, Deref, DerefMut, Clone, Copy)]
-struct DragInfo(Option<DragInfoData>);
-
-#[derive(Debug, Clone, Copy)]
-struct DragInfoData {
-    start: Vec3,
-    normal: Vec3,
-    end: Vec3,
-    user_input: UserInput,
-}
-
-fn move_player(
-    mut gizmos: Gizmos,
-    mut player: Query<(&Transform, Entity, &mut Player, &mut ExternalImpulse)>,
-    camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
-    user_input_position: Res<UserInputPosition>,
-    user_input: Res<Inputs<UserInput>>,
-    mut presses: EventReader<Pointer<Pressed>>,
-    mut drag_info: ResMut<DragInfo>,
-) {
-    let (camera, camera_transform) = camera.single();
-
-    let Some((transform, player_entity, mut player, mut impulse)) = player.iter_mut().next() else {
-        return;
-    };
-
-    if user_input.iter_pressed().count() > 1 {
-        **drag_info = None;
-        return;
-    }
-
-    for press in presses.read() {
-        if let (user_input, Some(position), Some(normal)) =
-            (press.user_input, press.hit.position, press.hit.normal)
-        {
-            if press.target == player_entity && player.shots > 0 {
-                **drag_info = Some(DragInfoData {
-                    start: position,
-                    normal,
-                    end: position,
-                    user_input,
-                });
-            }
-        }
-    }
-
-    let Some(drag_info_data) = &mut **drag_info else {
-        log!("no drag_info!");
-        return;
-    };
-
-    if let Some(cursor_position) = user_input_position.get(*drag_info_data.user_input) {
-        let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
-            log!("no ray!");
-            return;
-        };
-
-        let Some(distance) = ray.intersect_plane(
-            transform
-                .translation
-                .lerp(camera_transform.translation(), 0.5),
-            Plane3d::new(drag_info_data.normal),
-        ) else {
-            log!("no distance!");
-            return;
-        };
-
-        let point = ray.get_point(distance);
-        drag_info_data.end = point;
-    };
-
-    if user_input.just_released(drag_info_data.user_input) {
-        player.shots -= 1;
-        let push = (drag_info_data.start - drag_info_data.end) * 100.0;
-        log!("Pushing with {:?}", push);
-        *impulse = ExternalImpulse::at_point(push, drag_info_data.start, transform.translation);
-        **drag_info = None;
-        return;
-    }
-
-    if user_input.pressed(drag_info_data.user_input) {
-        if impulse.is_changed() {
-            impulse.bypass_change_detection();
-            impulse.reset();
-        }
-        gizmos.line(drag_info_data.start, drag_info_data.end, Color::WHITE);
-    }
+    spawn_arrow(commands, asset_server, pos);
 }
 
 fn move_camera_and_light(
@@ -243,7 +150,7 @@ fn rotate_camera(
         return;
     }
 
-    if drag_info.is_changed() && drag_info.is_some() {
+    if drag_info.is_some() {
         *last_point = None;
         return;
     }
