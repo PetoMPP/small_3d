@@ -1,4 +1,5 @@
 use super::components::{GameCamera, GameLight};
+use super::plugins::aiming_plugin::AimingPlugin;
 use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameScene};
 use super::plugins::player_plugin::PlayerPlugin;
 use super::resources::GameSceneData;
@@ -18,7 +19,7 @@ impl Plugin for GamePlugin {
             .add_plugins(RapierDebugRenderPlugin::default())
             .add_plugins(DefaultPickingPlugins)
             .add_plugins(RapierBackend)
-            .add_plugins((PlayerPlugin, GameScenePlugin))
+            .add_plugins((AimingPlugin, PlayerPlugin, GameScenePlugin))
             .add_systems(OnEnter(AppState::InGame), start_game);
     }
 }
