@@ -2,7 +2,7 @@ use crate::common::plugins::user_input_plugin::UserInputPlugin;
 use crate::main_menu::main_menu_plugin::MainMenuPlugin;
 use bevy::{asset::AssetMetaCheck, prelude::*};
 use game::game_plugin::GamePlugin;
-use resources::TextStyles;
+use resources::{resources_plugin::ResourcesPlugin, text_styles::TextStyles};
 
 mod common;
 mod game;
@@ -38,8 +38,8 @@ fn app() -> App {
             primary_window: Some(get_window()),
             ..Default::default()
         }))
-        .init_resource::<TextStyles>()
         .init_state::<AppState>()
+        .add_plugins(ResourcesPlugin)
         .add_plugins(MainMenuPlugin)
         .add_plugins(GamePlugin)
         .add_plugins(UserInputPlugin);

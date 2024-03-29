@@ -1,16 +1,34 @@
 use super::aiming_plugin::DragInfo;
 use crate::{
-    game::{
-        components::{GameCamera, GameEntity, Ground, Player},
-        resources::{GameScene, GameSceneData},
+    game::components::{GameCamera, GameEntity, Ground, Player},
+    resources::{
+        game_assets::GameAssets,
+        text_styles::{FontSize, FontType},
     },
-    resources::{FontSize, FontType},
     AppState, TextStyles,
 };
 use bevy::{input::keyboard::KeyboardInput, prelude::*};
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 
 pub struct GameScenePlugin;
+
+#[derive(Resource, Default, Clone, Deref, DerefMut)]
+pub struct GameScene(pub Option<GameSceneData>);
+
+#[derive(Resource, Clone, Copy, Deref, DerefMut)]
+pub struct GameSceneData(pub &'static dyn Scene);
+
+pub trait Scene: Send + Sync {
+    fn start_pos(&self) -> Vec3;
+
+    fn spawn(
+        &self,
+        commands: &mut Commands,
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<StandardMaterial>,
+        game_assets: &Res<GameAssets>,
+    );
+}
 
 #[derive(Event, Deref, DerefMut)]
 pub struct SetGameScene(pub GameSceneData);
@@ -131,11 +149,11 @@ fn spawn_game_scene(
     game_scene: Res<GameScene>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
+    game_assets: Res<GameAssets>,
 ) {
     println!("Spawning game scene");
     if let Some(game_scene) = &game_scene.0 {
-        game_scene.spawn(&mut commands, &mut meshes, &mut materials, &asset_server);
+        game_scene.spawn(&mut commands, &mut meshes, &mut materials, &game_assets);
     }
 }
 
