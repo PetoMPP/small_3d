@@ -1,8 +1,7 @@
 use super::components::{GameCamera, GameLight};
 use super::plugins::aiming_plugin::AimingPlugin;
-use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameScene};
+use super::plugins::game_scene_plugin::{GameSceneData, GameScenePlugin, SetGameScene};
 use super::plugins::player_plugin::PlayerPlugin;
-use super::resources::GameSceneData;
 use super::scenes::test::TEST_LEVEL;
 use crate::AppState;
 use bevy::prelude::*;

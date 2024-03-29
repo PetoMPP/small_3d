@@ -1,4 +1,4 @@
-use crate::resources::Inputs;
+use crate::resources::inputs::Inputs;
 use bevy::{input::mouse::mouse_button_input_system, prelude::*, utils::HashMap};
 use bevy_mod_picking::{
     backend::HitData,

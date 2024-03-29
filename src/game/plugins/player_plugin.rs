@@ -1,7 +1,8 @@
 use super::aiming_plugin::DragInfo;
 use crate::common::plugins::user_input_plugin::{UserInput, UserInputPosition};
 use crate::game::plugins::aiming_plugin::spawn_arrow;
-use crate::resources::Inputs;
+use crate::resources::game_assets::{GameAssets, GameScene};
+use crate::resources::inputs::Inputs;
 use crate::{
     game::components::{GameCamera, GameEntity, GameLight, Player},
     AppState,
@@ -20,13 +21,12 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-pub fn spawn_player(commands: &mut Commands, asset_server: &AssetServer, pos: Vec3) {
+pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
     const R: f32 = 0.2;
 
-    let player_scene = asset_server.load("models/player.glb#Scene0");
     commands
         .spawn(SceneBundle {
-            scene: player_scene,
+            scene: game_assets.get_scene(GameScene::Player),
             transform: Transform::from_translation(pos),
             ..Default::default()
         })
@@ -46,7 +46,7 @@ pub fn spawn_player(commands: &mut Commands, asset_server: &AssetServer, pos: Ve
             ActiveEvents::COLLISION_EVENTS,
             GameEntity,
         ));
-    spawn_arrow(commands, asset_server, pos);
+    spawn_arrow(commands, game_assets, pos);
 }
 
 fn move_camera_and_light(

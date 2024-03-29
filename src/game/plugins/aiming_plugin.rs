@@ -2,7 +2,10 @@ use crate::{
     common::plugins::user_input_plugin::{Pressed, UserInput, UserInputPosition},
     game::components::{GameCamera, GameEntity, Player},
     log,
-    resources::Inputs,
+    resources::{
+        game_assets::{GameAnimation, GameAssets, GameScene},
+        inputs::Inputs,
+    },
     AppState,
 };
 use bevy::prelude::*;
@@ -13,47 +16,30 @@ pub struct AimingPlugin;
 
 impl Plugin for AimingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DragInfo>()
-            .init_resource::<Arrow>()
-            .add_systems(
-                Update,
-                (
-                    start_player_aim,
-                    cancel_player_aim,
-                    aim_player,
-                    fire_player,
-                    setup_arrow,
-                    adjust_arrow,
-                )
-                    .run_if(in_state(AppState::InGame)),
-            );
+        app.init_resource::<DragInfo>().add_systems(
+            Update,
+            (
+                start_player_aim,
+                cancel_player_aim,
+                aim_player,
+                fire_player,
+                setup_arrow,
+                adjust_arrow,
+            )
+                .run_if(in_state(AppState::InGame)),
+        );
     }
 }
 
-pub fn spawn_arrow(commands: &mut Commands, asset_server: &AssetServer, pos: Vec3) {
-    let arrow_scene = asset_server.load("models/arrow.glb#Scene0");
+pub fn spawn_arrow(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
     commands
         .spawn(SceneBundle {
-            scene: arrow_scene,
+            scene: game_assets.get_scene(GameScene::AimArrow),
             transform: Transform::from_translation(pos),
             visibility: Visibility::Hidden,
             ..Default::default()
         })
         .insert((GameEntity, ArrowScene::default()));
-}
-
-#[derive(Resource)]
-pub struct Arrow {
-    animation_handle: Handle<AnimationClip>,
-}
-
-impl FromWorld for Arrow {
-    fn from_world(world: &mut World) -> Self {
-        let asset_server = world.get_resource::<AssetServer>().unwrap();
-        Arrow {
-            animation_handle: asset_server.load("models/arrow.glb#Animation0"),
-        }
-    }
 }
 
 #[derive(Component)]
@@ -66,12 +52,12 @@ struct ArrowScene {
 
 fn setup_arrow(
     mut commands: Commands,
-    arrow_animation: Res<Arrow>,
+    game_assets: Res<GameAssets>,
     mut players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
 ) {
     for (entity, mut player) in players.iter_mut() {
         log!("Setting up arrow");
-        player.play(arrow_animation.animation_handle.clone_weak());
+        player.play(game_assets.get_animation(GameAnimation::AimArrow));
         player.pause();
         commands.entity(entity).insert(ArrowAnimationPlayer);
     }

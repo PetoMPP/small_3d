@@ -1,7 +1,9 @@
-use crate::game::{
-    components::{GameEntity, Ground},
-    plugins::player_plugin::spawn_player,
-    resources::Scene,
+use crate::{
+    game::{
+        components::{GameEntity, Ground},
+        plugins::{game_scene_plugin::Scene, player_plugin::spawn_player},
+    },
+    resources::game_assets::GameAssets,
 };
 use bevy::prelude::*;
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
@@ -20,7 +22,7 @@ impl Scene for TestLevel {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
-        asset_server: &AssetServer,
+        game_assets: &Res<GameAssets>,
     ) {
         // Platform
         commands
@@ -75,6 +77,6 @@ impl Scene for TestLevel {
             GameEntity,
         ));
 
-        spawn_player(commands, asset_server, self.start_pos());
+        spawn_player(commands, game_assets, self.start_pos());
     }
 }
