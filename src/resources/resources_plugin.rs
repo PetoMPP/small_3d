@@ -6,6 +6,7 @@ pub struct ResourcesPlugin;
 impl Plugin for ResourcesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TextStyles>()
-            .init_resource::<GameAssets>();
+            .init_resource::<GameAssets>()
+            .add_systems(Update, GameAssets::init_assets_system);
     }
 }
