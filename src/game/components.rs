@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use std::f32::{consts::PI, EPSILON};
+use std::f32::consts::PI;
 
 #[derive(Component, Clone, Copy)]
 pub struct GameEntity;
@@ -26,7 +26,7 @@ impl GameCamera {
     pub fn offset(&mut self, offset: Vec2) {
         self.offset = Vec2::new(
             self.offset.x + offset.x,
-            (self.offset.y + offset.y).clamp(0.0 + EPSILON, PI - EPSILON),
+            (self.offset.y + offset.y).clamp(0.0 + 0.001, PI - 0.001),
         );
     }
 }

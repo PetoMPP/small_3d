@@ -8,7 +8,7 @@ use crate::{
     },
     AppState,
 };
-use bevy::prelude::*;
+use bevy::{prelude::*, scene::SceneInstance};
 use bevy_mod_picking::prelude::*;
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 
@@ -16,17 +16,20 @@ pub struct AimingPlugin;
 
 impl Plugin for AimingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DragInfo>().add_systems(
-            Update,
-            (
-                start_player_aim,
-                cancel_player_aim,
-                aim_player,
-                fire_player,
-                adjust_arrow,
+        app.init_resource::<DragInfo>()
+            .add_systems(
+                Update,
+                (
+                    start_player_aim,
+                    cancel_player_aim,
+                    aim_player,
+                    fire_player,
+                    initialize_arrow_components,
+                    update_arrow,
+                )
+                    .run_if(in_state(AppState::InGame)),
             )
-                .run_if(in_state(AppState::InGame)),
-        );
+            .add_systems(Update, adjust_arrow.after(update_arrow));
     }
 }
 
@@ -45,20 +48,41 @@ pub fn spawn_arrow(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: 
 pub struct ArrowAnimationPlayer;
 
 #[derive(Component, Default)]
-struct ArrowScene {
+pub struct ArrowScene {
     power: f32,
+    angle: f32,
 }
 
-fn adjust_arrow(
-    mut animation_players: Query<&mut AnimationPlayer, With<ArrowAnimationPlayer>>,
-    player: Query<(Entity, Ref<Transform>), (With<Player>, Without<ArrowScene>)>,
-    mut arrow: Query<(&mut Transform, &mut Visibility, &mut ArrowScene)>,
-    camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
-    drag_info: Res<DragInfo>,
+#[derive(Component)]
+pub struct ArrowEntity;
+
+fn initialize_arrow_components(
+    mut commands: Commands,
+    spawned_arrow_scene: Query<&Children, (Added<SceneInstance>, With<ArrowScene>)>,
+    mut new_animations: Query<(Entity, &Parent), Added<AnimationPlayer>>,
+) {
+    let mut arrow_entities = Vec::new();
+    for children in spawned_arrow_scene.iter() {
+        for child in children.iter() {
+            commands.entity(*child).insert(ArrowEntity);
+            arrow_entities.push(*child);
+        }
+    }
+
+    for (entity, parent) in new_animations.iter_mut() {
+        if arrow_entities.contains(&**parent) {
+            commands.entity(entity).insert(ArrowAnimationPlayer);
+        }
+    }
+}
+
+fn update_arrow(
     window: Query<&Window>,
+    camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
+    player: Query<(Entity, Ref<Transform>), (With<Player>, Without<ArrowScene>)>,
+    mut arrow: Query<&mut ArrowScene>,
+    drag_info: Res<DragInfo>,
     rapier_context: Res<RapierContext>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    game_assets: Res<GameAssets>,
 ) {
     let Some(window) = window.iter().next() else {
         return;
@@ -72,25 +96,17 @@ fn adjust_arrow(
         return;
     };
 
-    let Some((mut arrow_transform, mut arrow_visibility, mut arrow_power)) =
-        arrow.iter_mut().next()
+    let Some(player_pos) = camera.world_to_viewport(camera_transform, player_transform.translation)
     else {
+        return;
+    };
+
+    let Some(mut arrow_scene) = arrow.iter_mut().next() else {
         return;
     };
 
     let Some(drag_info) = **drag_info else {
-        if let Visibility::Visible = *arrow_visibility {
-            *arrow_visibility = Visibility::Hidden;
-        }
-        return;
-    };
-
-    if let Visibility::Hidden = *arrow_visibility {
-        *arrow_visibility = Visibility::Visible;
-    }
-
-    let Some(player_pos) = camera.world_to_viewport(camera_transform, player_transform.translation)
-    else {
+        *arrow_scene = ArrowScene::default();
         return;
     };
 
@@ -105,23 +121,6 @@ fn adjust_arrow(
         x if x > MAX => 1.0,
         x => (x - MIN) / (MAX - MIN),
     };
-
-    arrow_power.power = power;
-
-    if power <= 0.0 {
-        if let Visibility::Visible = *arrow_visibility {
-            *arrow_visibility = Visibility::Hidden;
-        }
-        return;
-    }
-
-    let Some(color_material) =
-        materials.get_mut(game_assets.get_material(GameMaterial::AimArrowBody))
-    else {
-        return;
-    };
-
-    color_material.base_color = get_power_color(power);
 
     let Some((arrow_point, normal)) = get_contact_position(player_entity, &rapier_context) else {
         return;
@@ -139,14 +138,61 @@ fn adjust_arrow(
     let drag_point = drag_point.lerp(arrow_point, 2.0);
     let angle = (drag_point.y - arrow_point.y).atan2(drag_point.x - arrow_point.x)
         - std::f32::consts::FRAC_PI_2;
-    *arrow_transform = player_transform
-        .with_rotation(Quat::from_rotation_z(angle))
-        .with_scale(Vec3::splat(0.55.lerp(1.15, power)));
+
+    arrow_scene.power = power;
+    arrow_scene.angle = angle;
+}
+
+fn adjust_arrow(
+    mut animation_players: Query<&mut AnimationPlayer, With<ArrowAnimationPlayer>>,
+    mut arrow: Query<
+        (&mut Transform, &mut Visibility, &ArrowScene),
+        (Changed<ArrowScene>, Without<Player>),
+    >,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    player: Query<&Transform, With<Player>>,
+    game_assets: Res<GameAssets>,
+) {
+    let Some((mut arrow_transform, mut arrow_visibility, arrow_scene)) = arrow.iter_mut().next()
+    else {
+        return;
+    };
+
+    let visibility = match arrow_scene.power {
+        x if x <= 0.0 => Visibility::Hidden,
+        _ => Visibility::Visible,
+    };
+
+    let Some(color_material) =
+        materials.get_mut(game_assets.get_material(GameMaterial::AimArrowBody))
+    else {
+        return;
+    };
+
+    let color = get_power_color(arrow_scene.power);
+
+    let Some(player_transform) = player.iter().next() else {
+        return;
+    };
+
+    let transform = player_transform
+        .with_rotation(Quat::from_rotation_z(arrow_scene.angle))
+        .with_scale(Vec3::splat(0.65.lerp(1.10, arrow_scene.power)));
+
+    if *arrow_visibility != visibility {
+        *arrow_visibility = visibility;
+    }
+    if color_material.base_color != color {
+        color_material.base_color = color;
+    }
+    if *arrow_transform != transform {
+        *arrow_transform = transform;
+    }
 
     // Clip is played in 24fps at 1.0 speed
     // Duration is 60 frames = 2.5 seconds
     const DURATION: f32 = 2.5;
-    let power = power * DURATION;
+    let power = arrow_scene.power * DURATION;
 
     for mut animation_player in animation_players.iter_mut() {
         animation_player.seek_to(power);
