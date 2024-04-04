@@ -282,7 +282,6 @@ fn start_player_aim(
 fn cancel_player_aim(mut drag_info: ResMut<DragInfo>, user_input: Res<Inputs<UserInput>>) {
     if user_input.iter_pressed().count() > 1 {
         **drag_info = None;
-        return;
     }
 }
 
@@ -301,7 +300,6 @@ fn aim_player(
 
     if user_input.just_released(drag_info_data.user_input) {
         drag_info_data.confirmed = true;
-        return;
     }
 }
 
@@ -327,7 +325,7 @@ fn fire_player(
             entity,
             transform,
             &mut player,
-            &drag_info_data,
+            drag_info_data,
             &arrow,
             camera,
             camera_transform,
@@ -340,6 +338,7 @@ fn fire_player(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn calculate_impulse(
     entity: Entity,
     transform: &Transform,

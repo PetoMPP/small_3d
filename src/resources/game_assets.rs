@@ -73,11 +73,11 @@ impl IntoIterator for &GameAssets {
     fn into_iter(self) -> Self::IntoIter {
         self.scenes
             .values()
-            .map(|h| Into::<UntypedAssetId>::into(h))
+            .map(Into::<UntypedAssetId>::into)
             .chain(
                 self.animations
                     .values()
-                    .map(|h| Into::<UntypedAssetId>::into(h)),
+                    .map(Into::<UntypedAssetId>::into),
             )
             .collect::<Vec<_>>()
             .into_iter()
