@@ -1,8 +1,8 @@
 use super::components::{GameCamera, GameLight};
 use super::plugins::aiming_plugin::AimingPlugin;
-use super::plugins::game_scene_plugin::{GameSceneData, GameScenePlugin, SetGameScene};
+use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameLevel};
 use super::plugins::player_plugin::PlayerPlugin;
-use super::scenes::test::TEST_LEVEL;
+use crate::resources::game_assets::GameLevel;
 use crate::AppState;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
@@ -25,7 +25,7 @@ impl Plugin for GamePlugin {
 
 fn start_game(
     mut commands: Commands,
-    mut set_scene: EventWriter<SetGameScene>,
+    mut set_scene: EventWriter<SetGameLevel>,
     mut rapier_config: ResMut<RapierConfiguration>,
 ) {
     // collision config
@@ -56,5 +56,5 @@ fn start_game(
         .insert(GameCamera::default());
 
     // game scene
-    set_scene.send(SetGameScene(GameSceneData(&TEST_LEVEL)));
+    set_scene.send(SetGameLevel(GameLevel::Level1));
 }

@@ -105,8 +105,8 @@ fn initialize_arrow_components(
 fn update_arrow(
     window: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
-    player: Query<(Entity, Ref<Transform>), (With<Player>, Without<ArrowScene>)>,
-    mut arrow: Query<&mut ArrowScene>,
+    player: Query<(Entity, &Transform), With<Player>>,
+    mut arrow: Query<(&Transform, &mut ArrowScene)>,
     drag_info: Res<DragInfo>,
     rapier_context: Res<RapierContext>,
 ) {
@@ -119,17 +119,21 @@ fn update_arrow(
     };
 
     let Some((player_entity, player_transform)) = player.iter().next() else {
+        log!("no player");
         return;
     };
 
     let Some(player_pos) = camera.world_to_viewport(camera_transform, player_transform.translation)
     else {
+        log!("no player pos");
         return;
     };
 
-    let Some(mut arrow_scene) = arrow.iter_mut().next() else {
+    let Some((arrow_transform, mut arrow_scene)) = arrow.iter_mut().next() else {
         return;
     };
+
+    let arrow_point = arrow_transform.translation;
 
     let Some(drag_info) = **drag_info else {
         *arrow_scene = ArrowScene::default();
@@ -148,9 +152,7 @@ fn update_arrow(
         x => (x - MIN) / (MAX - MIN),
     };
 
-    let Some((arrow_point, normal)) = get_contact_position(player_entity, &rapier_context) else {
-        return;
-    };
+    let normal = get_contact_normal(player_entity, &rapier_context).unwrap_or(Vec3::Z);
 
     let Some(ray) = camera.viewport_to_world(camera_transform, drag_info.point) else {
         return;
@@ -200,8 +202,6 @@ fn adjust_arrow(
     let Some(player_transform) = player.iter().next() else {
         return;
     };
-
-    log!("Arrow size: {:?}", arrow_scene.size_tween);
 
     let transform = player_transform
         .with_rotation(Quat::from_rotation_z(arrow_scene.angle))
@@ -266,8 +266,11 @@ fn start_player_aim(
     };
 
     for press in presses.read() {
+        log!("press");
         if press.target == player_entity && player.shots > 0 {
+            log!("press target");
             let Some(position) = user_input_position.get(*press.user_input) else {
+                log!("no input position");
                 break;
             };
             **drag_info = Some(DragInfoData {
@@ -296,7 +299,9 @@ fn aim_player(
 
     if let Some(cursor_position) = user_input_position.get(*drag_info_data.user_input) {
         drag_info_data.point = cursor_position;
-    };
+    } else {
+        log!("no cursor position");
+    }
 
     if user_input.just_released(drag_info_data.user_input) {
         drag_info_data.confirmed = true;
@@ -331,7 +336,6 @@ fn fire_player(
             camera_transform,
             &rapier_context,
         ) {
-            log!("Player shot with power: {:?}", new_impulse);
             *impulse = new_impulse;
         }
         **drag_info = None;
@@ -353,12 +357,12 @@ fn calculate_impulse(
     if arrow.power <= 0.0 {
         return None;
     }
-    let (player_point, normal) = get_contact_position(entity, rapier_context)?;
+    let normal = get_contact_normal(entity, rapier_context).unwrap_or(Vec3::Z);
     let ray = camera.viewport_to_world(camera_transform, drag_info_data.point)?;
-    let distance = ray.intersect_plane(player_point, Plane3d::new(normal))?;
+    let distance = ray.intersect_plane(transform.translation, Plane3d::new(normal))?;
     let point = ray.get_point(distance);
     player.shots -= 1;
-    let push = (player_point - point).normalize() * arrow.power * 250.0;
+    let push = (transform.translation - point).normalize() * arrow.power * 250.0;
 
     Some(ExternalImpulse::at_point(
         push,
@@ -367,31 +371,18 @@ fn calculate_impulse(
     ))
 }
 
-fn get_contact_position(
-    player_entity: Entity,
-    rapier_context: &Res<RapierContext>,
-) -> Option<(Vec3, Vec3)> {
+fn get_contact_normal(player_entity: Entity, rapier_context: &Res<RapierContext>) -> Option<Vec3> {
     let Some(contact_pair) = rapier_context.contact_pairs_with(player_entity).next() else {
+        log!("no contact pair");
         return None;
     };
 
-    let other = if contact_pair.collider1() == player_entity {
-        1
-    } else {
-        2
-    };
-
-    let Some(manifold) = contact_pair.manifold(0) else {
-        return None;
-    };
-    let Some(point) = manifold.point(0) else {
-        return None;
-    };
-    let point = if other == 1 {
-        point.local_p2()
-    } else {
-        point.local_p1()
-    };
-
-    Some((point + Vec3::Z * 0.001, manifold.normal()))
+    contact_pair
+        .manifold(0)
+        .map(|m| m.normal())
+        .map(|n| match n == Vec3::ZERO {
+            true => None,
+            false => Some(n),
+        })
+        .flatten()
 }

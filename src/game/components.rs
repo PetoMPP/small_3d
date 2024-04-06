@@ -35,24 +35,13 @@ impl Default for GameCamera {
     fn default() -> Self {
         Self {
             distance: 5.0,
-            offset: Vec2::new(0.0, PI / 4.0),
+            offset: Vec2::new(0.0, PI / 3.0),
         }
     }
 }
 
 #[derive(Component)]
 pub struct GameLight;
-
-#[derive(Component, Deref, DerefMut)]
-pub struct Ground(pub Timer);
-
-impl Default for Ground {
-    fn default() -> Self {
-        let mut timer = Timer::from_seconds(0.75, TimerMode::Once);
-        timer.pause();
-        Self(timer)
-    }
-}
 
 #[derive(Component)]
 pub struct Player {
@@ -61,6 +50,6 @@ pub struct Player {
 
 impl Default for Player {
     fn default() -> Self {
-        Self { shots: 1 }
+        Self { shots: 10 }
     }
 }

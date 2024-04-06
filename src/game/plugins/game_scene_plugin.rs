@@ -1,11 +1,11 @@
-use super::aiming_plugin::DragInfo;
+use super::{aiming_plugin::DragInfo, player_plugin::PLAYER_RADIUS};
 use crate::{
-    game::components::{GameCamera, GameEntity, Ground, Player},
-    resources::{
-        game_assets::GameAssets,
-        text_styles::{FontSize, FontType},
+    game::{
+        components::{GameCamera, GameEntity, Player},
+        plugins::player_plugin::spawn_player,
     },
-    AppState, TextStyles,
+    resources::game_assets::{GameAssets, GameLevel, GameScene},
+    AppState,
 };
 use bevy::{input::keyboard::KeyboardInput, prelude::*};
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
@@ -13,53 +13,38 @@ use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 pub struct GameScenePlugin;
 
 #[derive(Resource, Default, Clone, Deref, DerefMut)]
-pub struct GameScene(pub Option<GameSceneData>);
-
-#[derive(Resource, Clone, Copy, Deref, DerefMut)]
-pub struct GameSceneData(pub &'static dyn Scene);
-
-pub trait Scene: Send + Sync {
-    fn start_pos(&self) -> Vec3;
-
-    fn spawn(
-        &self,
-        commands: &mut Commands,
-        meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
-        game_assets: &Res<GameAssets>,
-    );
-}
+pub struct CurrentLevel(pub Option<GameLevel>);
 
 #[derive(Event, Deref, DerefMut)]
-pub struct SetGameScene(pub GameSceneData);
+pub struct SetGameLevel(pub GameLevel);
 
 impl Plugin for GameScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<GameScene>()
-            .init_resource::<ReloadTimerInitialized>()
-            .add_event::<SetGameScene>()
+        app.init_resource::<CurrentLevel>()
+            .add_event::<SetGameLevel>()
             .add_systems(
                 Update,
                 (
                     set_game_scene,
+                    initialize_game_scene,
                     reload_scene,
-                    reload_on_ground_collision,
-                    update_distance,
+                    reload_on_bounds_collision,
+                    reload_on_pass_through_goal,
                 )
                     .run_if(in_state(AppState::InGame)),
             )
             .add_systems(
                 Update,
-                (reset_state, spawn_distance_text, spawn_game_scene)
+                (reset_state, spawn_game_scene)
                     .run_if(in_state(AppState::InGame))
-                    .run_if(resource_changed::<GameScene>),
+                    .run_if(resource_changed::<CurrentLevel>),
             );
     }
 }
 
 fn set_game_scene(
-    mut game_scene: ResMut<GameScene>,
-    mut set_game_scene: EventReader<SetGameScene>,
+    mut game_scene: ResMut<CurrentLevel>,
+    mut set_game_scene: EventReader<SetGameLevel>,
 ) {
     for set_game_scene in set_game_scene.read() {
         **game_scene = Some(**set_game_scene);
@@ -67,8 +52,8 @@ fn set_game_scene(
 }
 
 fn reload_scene(
-    mut set_game_scene: EventWriter<SetGameScene>,
-    game_scene: Res<GameScene>,
+    mut set_game_scene: EventWriter<SetGameLevel>,
+    game_scene: Res<CurrentLevel>,
     mut key_input: EventReader<KeyboardInput>,
 ) {
     let Some(key_input) = key_input.read().next() else {
@@ -77,7 +62,7 @@ fn reload_scene(
 
     if key_input.state.is_pressed() && key_input.key_code == KeyCode::KeyR {
         if let Some(game_scene) = **game_scene {
-            set_game_scene.send(SetGameScene(game_scene));
+            set_game_scene.send(SetGameLevel(game_scene));
         }
     }
 }
@@ -85,7 +70,6 @@ fn reload_scene(
 fn reset_state(
     mut commands: Commands,
     mut camera: Query<&mut GameCamera>,
-    mut timer_initialized: ResMut<ReloadTimerInitialized>,
     mut drag_info: ResMut<DragInfo>,
     entities: Query<(Entity, &GameEntity)>,
 ) {
@@ -99,129 +83,231 @@ fn reset_state(
         *camera = GameCamera::default();
     }
 
-    // Reset reload timer
-    **timer_initialized = false;
-
     // Reset drag info
     **drag_info = None;
 }
 
-#[derive(Component)]
-struct DistanceText;
-
-fn spawn_distance_text(mut commands: Commands, text_styles: Res<TextStyles>) {
-    // Text to describe the controls.
-    const GAME_MANUAL_TEXT: &str = "\
-    Drag the ball to launch it\n\
-    Swipe to rotate the camera\n\
-    Pinch to zoom camera\n\
-    Press R to reset the level";
-
-    println!("Spawning distance text");
-    commands
-        .spawn((
-            NodeBundle {
-                style: Style {
-                    width: Val::Percent(100.),
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                ..default()
-            },
-            GameEntity,
-        ))
-        .with_children(|root| {
-            root.spawn((
-                TextBundle {
-                    text: Text::from_section(
-                        GAME_MANUAL_TEXT,
-                        text_styles.get(FontType::Regular, FontSize::Medium, Color::WHITE),
-                    ),
-                    ..Default::default()
-                },
-                DistanceText,
-            ));
-        });
-}
-
 fn spawn_game_scene(
     mut commands: Commands,
-    game_scene: Res<GameScene>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    game_scene: Res<CurrentLevel>,
     game_assets: Res<GameAssets>,
 ) {
-    println!("Spawning game scene");
-    if let Some(game_scene) = &game_scene.0 {
-        game_scene.spawn(&mut commands, &mut meshes, &mut materials, &game_assets);
+    if let Some(game_level) = &game_scene.0 {
+        commands
+            .spawn(SceneBundle {
+                scene: game_assets.get_scene(GameScene::Level(*game_level)),
+                ..default()
+            })
+            .insert(GameEntity);
     }
 }
 
-#[derive(Resource, Default, Deref, DerefMut)]
-struct ReloadTimerInitialized(bool);
+enum GameLevelObjectType {
+    Object,
+    Bounds,
+    Spawn,
+    Goal(Vec2),
+}
 
-fn reload_on_ground_collision(
-    mut set_game_scene: EventWriter<SetGameScene>,
+impl TryFrom<&Name> for GameLevelObjectType {
+    type Error = ();
+
+    fn try_from(value: &Name) -> Result<Self, ()> {
+        match value.as_str() {
+            s if s.starts_with("Object") => Ok(Self::Object),
+            "Bounds" => Ok(Self::Bounds),
+            "Spawn" => Ok(Self::Spawn),
+            s if s.starts_with("Goal") => s
+                .split_once('_')
+                .map(|(_, d)| match &d[..2] {
+                    "X+" => Some(Vec2::X),
+                    "X-" => Some(-Vec2::X),
+                    "Y+" => Some(Vec2::Y),
+                    "Y-" => Some(-Vec2::Y),
+                    _ => None,
+                })
+                .flatten()
+                .map(|d| Self::Goal(d))
+                .ok_or(()),
+            _ => Err(()),
+        }
+    }
+}
+
+fn initialize_game_scene(
+    mut commands: Commands,
+    entities: Query<(Entity, &Name, Option<&Children>), Added<Name>>,
+    meshes: Res<Assets<Mesh>>,
+    mesh_entities: Query<&Handle<Mesh>>,
+    transforms: Query<&Transform>,
+    game_assets: Res<GameAssets>,
+) {
+    for (entity, name, children) in entities.iter() {
+        let Ok(object_type) = GameLevelObjectType::try_from(name) else {
+            continue;
+        };
+
+        match object_type {
+            GameLevelObjectType::Object => {
+                let Some(children) = children else {
+                    continue;
+                };
+                for child in children.iter() {
+                    let Some(collider) =
+                        get_collider_from_mesh_entity(*child, &meshes, &mesh_entities)
+                    else {
+                        continue;
+                    };
+                    let mut entity_commands = commands.entity(*child);
+                    entity_commands.insert(collider);
+                }
+            }
+            GameLevelObjectType::Bounds => {
+                let Some(children) = children else {
+                    continue;
+                };
+                for child in children.iter() {
+                    let Some(collider) =
+                        get_collider_from_mesh_entity(*child, &meshes, &mesh_entities)
+                    else {
+                        continue;
+                    };
+                    let mut entity_commands = commands.entity(*child);
+                    entity_commands.insert(collider);
+                    entity_commands.insert((GameBounds, Visibility::Hidden));
+                }
+            }
+            GameLevelObjectType::Spawn => {
+                let Ok(transform) = transforms.get(entity) else {
+                    continue;
+                };
+                spawn_player(
+                    &mut commands,
+                    &game_assets,
+                    transform.translation + Vec3::Z * PLAYER_RADIUS,
+                );
+            }
+            GameLevelObjectType::Goal(dir) => {
+                let Some(children) = children else {
+                    continue;
+                };
+                for child in children.iter() {
+                    let Ok(mesh) = mesh_entities.get(*child) else {
+                        continue;
+                    };
+                    let Some(mesh) = meshes.get(mesh) else {
+                        continue;
+                    };
+                    let Some(collider) =
+                        Collider::from_bevy_mesh(mesh, &ComputedColliderShape::TriMesh)
+                    else {
+                        continue;
+                    };
+                    commands
+                        .entity(*child)
+                        .insert((collider, Sensor, GameGoal(dir)));
+                }
+            }
+        }
+    }
+}
+
+fn get_collider_from_mesh_entity(
+    entity: Entity,
+    meshes: &Res<Assets<Mesh>>,
+    mesh_entities: &Query<&Handle<Mesh>>,
+) -> Option<Collider> {
+    let Ok(mesh) = mesh_entities.get(entity) else {
+        return None;
+    };
+    let Some(mesh) = meshes.get(mesh) else {
+        return None;
+    };
+    Collider::from_bevy_mesh(mesh, &ComputedColliderShape::TriMesh)
+}
+
+#[derive(Component)]
+struct GameBounds;
+
+fn reload_on_bounds_collision(
+    mut set_game_level: EventWriter<SetGameLevel>,
     mut ground_collisions: EventReader<CollisionEvent>,
-    game_scene: Res<GameScene>,
-    player: Query<(Entity, Ref<Sleeping>), With<Player>>,
-    mut ground: Query<(Entity, &mut Ground), Without<Player>>,
-    time: Res<Time>,
-    mut initialized: ResMut<ReloadTimerInitialized>,
+    game_level: Res<CurrentLevel>,
+    player: Query<Entity, With<Player>>,
+    bounds: Query<Entity, With<GameBounds>>,
 ) {
-    let Some((player_entity, player_sleep)) = player.iter().next() else {
+    let Some(player_entity) = player.iter().next() else {
         return;
     };
-    let Some((ground_entity, mut ground)) = ground.iter_mut().next() else {
+    let Some(bounds_entity) = bounds.iter().next() else {
+        return;
+    };
+    let Some(game_level) = **game_level else {
         return;
     };
 
-    // Progress the ground timer if unpaused
-    ground.tick(time.delta());
-    if ground.just_finished() {
-        if let Some(game_scene) = **game_scene {
-            set_game_scene.send(SetGameScene(game_scene));
-        }
-        return;
-    }
-
-    // After first ground collision, wait for player to sleep before resetting
-    if **initialized && player_sleep.is_changed() && player_sleep.sleeping {
-        **initialized = false;
-        ground.unpause();
-        ground.reset();
-    }
-
-    let entities = [player_entity, ground_entity];
+    let entities = [player_entity, bounds_entity];
     for collision in ground_collisions.read() {
-        match collision {
-            // Set initialized to true if player and ground collide
-            CollisionEvent::Started(e1, e2, _) => {
-                if entities.contains(e1) && entities.contains(e2) {
-                    **initialized = true;
-                }
-            }
-            // Pause the ground timer if player and ground stop colliding
-            CollisionEvent::Stopped(e1, e2, _) => {
-                if entities.contains(e1) && entities.contains(e2) {
-                    ground.pause();
-                }
+        if let CollisionEvent::Started(e1, e2, _) = collision {
+            if entities.contains(e1) && entities.contains(e2) {
+                set_game_level.send(SetGameLevel(game_level));
             }
         }
     }
 }
 
-fn update_distance(
-    mut distance_text: Query<&mut Text, With<DistanceText>>,
-    player: Query<&Transform, With<Player>>,
-    scene: Res<GameScene>,
+#[derive(Component)]
+struct GameGoal(Vec2);
+
+fn reload_on_pass_through_goal(
+    mut set_game_level: EventWriter<SetGameLevel>,
+    game_level: Res<CurrentLevel>,
+    player: Query<(Entity, &Transform), With<Player>>,
+    goals: Query<(Entity, &GlobalTransform, &GameGoal)>,
+    rapier_context: Res<RapierContext>,
+    mut started: Local<Option<Entity>>,
 ) {
-    if let (Some(transform), Some(scene)) = (player.iter().next(), scene.0.as_ref()) {
-        if let Some(mut distance_text) = distance_text.iter_mut().next() {
-            let distance = (transform.translation.xy() - scene.start_pos().xy()).length();
-            if distance > 0.0 {
-                distance_text.sections[0].value = format!("Distance: {:.2} m", distance);
-            }
+    let Some((player_entity, player_transform)) = player.iter().next() else {
+        return;
+    };
+    let Some(game_level) = **game_level else {
+        return;
+    };
+
+    let mut is_intersected = false;
+
+    for (e1, e2, _overlap) in rapier_context.intersection_pairs_with(player_entity) {
+        let Some(goal_entity) = goals
+            .get(e1)
+            .ok()
+            .or_else(|| goals.get(e2).ok())
+            .map(|(e, _, _)| e)
+        else {
+            continue;
+        };
+        is_intersected = true;
+        if Some(goal_entity) == *started {
+            continue;
         }
+        *started = Some(goal_entity);
     }
+
+    if is_intersected {
+        return;
+    }
+
+    let Some(goal_entity) = *started else {
+        return;
+    };
+
+    let Ok((_, goal_transform, goal)) = goals.get(goal_entity) else {
+        return;
+    };
+
+    let movement =
+        (player_transform.translation.xy() - goal_transform.translation().xy()).normalize();
+    if movement.x * goal.0.x >= 0.0 && movement.y * goal.0.y >= 0.0 {
+        set_game_level.send(SetGameLevel(game_level));
+    }
+    *started = None;
 }
