@@ -1,17 +1,23 @@
 use super::loadable::Loadable;
 use crate::game::plugins::aiming_plugin::ArrowAnimationPlayer;
-use bevy::{asset::UntypedAssetId, prelude::*, utils::HashMap};
+use bevy::{asset::UntypedAssetId, prelude::*, render::render_resource::Face, utils::HashMap};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum GameScene {
     Player,
     AimArrow,
+    Level(GameLevel),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum GameMaterial {
     AimArrowBody,
     AimArrowBorder,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum GameLevel {
+    Level1,
 }
 
 #[derive(Resource, Clone)]
@@ -41,14 +47,17 @@ impl GameAssets {
         game_assets: Res<GameAssets>,
     ) {
         for handle in new_base_materials.iter() {
-            let id: UntypedAssetId = handle.into();
-            if game_assets.into_iter().any(|h| h == id) {
-                continue;
-            }
             let Some(material) = materials.get_mut(handle) else {
                 continue;
             };
             material.reflectance = 0.0;
+            material.double_sided = *handle
+                == game_assets.get_material(GameMaterial::AimArrowBorder)
+                || *handle == game_assets.get_material(GameMaterial::AimArrowBody);
+            if material.base_color.a() < 1.0 {
+                material.cull_mode = Some(Face::Front);
+                material.alpha_mode = AlphaMode::Blend;
+            }
         }
 
         for (name, mut player) in new_arrow_animations.iter_mut() {
@@ -74,11 +83,7 @@ impl IntoIterator for &GameAssets {
         self.scenes
             .values()
             .map(Into::<UntypedAssetId>::into)
-            .chain(
-                self.animations
-                    .values()
-                    .map(Into::<UntypedAssetId>::into),
-            )
+            .chain(self.animations.values().map(Into::<UntypedAssetId>::into))
             .collect::<Vec<_>>()
             .into_iter()
     }
@@ -95,6 +100,10 @@ impl FromWorld for GameAssets {
         scenes.insert(
             GameScene::AimArrow,
             asset_server.load("models/arrow.glb#Scene0"),
+        );
+        scenes.insert(
+            GameScene::Level(GameLevel::Level1),
+            asset_server.load("models/levels/level1.glb#Scene0"),
         );
         let mut animations = HashMap::default();
         animations.insert(

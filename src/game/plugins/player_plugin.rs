@@ -21,9 +21,9 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
-    const R: f32 = 0.2;
+pub const PLAYER_RADIUS: f32 = 0.2;
 
+pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
     commands
         .spawn(SceneBundle {
             scene: game_assets.get_scene(GameScene::Player),
@@ -35,7 +35,7 @@ pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos:
             Sleeping::default(),
             ExternalImpulse::default(),
             RigidBody::Dynamic,
-            Collider::ball(R),
+            Collider::ball(PLAYER_RADIUS),
             Friction::coefficient(0.6),
             Restitution::new(0.3),
             Damping {
