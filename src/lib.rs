@@ -55,18 +55,14 @@ fn get_window() -> Window {
         title: "Small 3D".to_string(),
         canvas: Some("#canvas".to_string()),
         resolution: {
-            let width = web_sys::window()
+            let root = web_sys::window()
                 .unwrap()
-                .inner_width()
+                .document()
                 .unwrap()
-                .as_f64()
-                .unwrap() as f32;
-            let height = web_sys::window()
-                .unwrap()
-                .inner_height()
-                .unwrap()
-                .as_f64()
-                .unwrap() as f32;
+                .body()
+                .unwrap();
+            let width = root.client_width() as f32;
+            let height = root.client_height() as f32;
             bevy::window::WindowResolution::new(width, height)
         },
         ..Default::default()
