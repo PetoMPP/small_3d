@@ -119,15 +119,15 @@ impl TryFrom<&Name> for GameLevelObjectType {
             "Spawn" => Ok(Self::Spawn),
             s if s.starts_with("Goal") => s
                 .split_once('_')
-                .map(|(_, d)| match &d[..2] {
+                .and_then(|(_, d)| d.get(..2))
+                .and_then(|d| match d {
                     "X+" => Some(Vec2::X),
                     "X-" => Some(-Vec2::X),
                     "Y+" => Some(Vec2::Y),
                     "Y-" => Some(-Vec2::Y),
                     _ => None,
                 })
-                .flatten()
-                .map(|d| Self::Goal(d))
+                .map(Self::Goal)
                 .ok_or(()),
             _ => Err(()),
         }
