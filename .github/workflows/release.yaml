@@ -5,10 +5,17 @@ on:
   push:
     branches:
       - master    
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'wasm/**'
+      - 'index.html'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'Trunk.toml'
 
 
 jobs:
-  # Build for wasm
   release-wasm:
     runs-on: ubuntu-latest
 
