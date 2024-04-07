@@ -380,9 +380,8 @@ fn get_contact_normal(player_entity: Entity, rapier_context: &Res<RapierContext>
     contact_pair
         .manifold(0)
         .map(|m| m.normal())
-        .map(|n| match n == Vec3::ZERO {
+        .and_then(|n| match n == Vec3::ZERO {
             true => None,
             false => Some(n),
         })
-        .flatten()
 }
