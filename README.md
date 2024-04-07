@@ -1,14 +1,18 @@
 # Small 3D
 
 A small 3D game about shooting a ball into expected place.
+Check it out on https://petompp.github.io/small_3d/ (Best played on mobile)
 
 ## Roadmap
 
-- [x] User controlled ball
-- [x] Aiming
+- [ ] Player
+    - [x] Aiming
+    - [ ] Swappable styles
+    - [ ] Action effects/particles
 - [ ] Levels
     - [x] Loadable level models
     - [x] Colliding objects
+    - [x] Pass-through goal gates
     - [ ] Moving obstacles
     - [ ] Collectibles
         - [ ] Points
@@ -22,6 +26,10 @@ A small 3D game about shooting a ball into expected place.
   - [ ] Main menu
       - [ ] Play
           - [ ] Level select
+          - [ ] Customize
+              - [ ] Speedmeter and other utilities
+          - [ ] Shop?
+          - [ ] Achievements
       - [ ] Settings
           - [ ] Graphics settings
           - [ ] Audio settings
@@ -34,4 +42,8 @@ A small 3D game about shooting a ball into expected place.
               - [ ] Reset level
               - [ ] Resume
               - [ ] Back to menu
-
+- [ ] Sounds
+    - [ ] Background music
+    - [ ] Collision sounds
+    - [ ] Loss sound
+    - [ ] Win sound
