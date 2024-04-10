@@ -1,6 +1,15 @@
 use super::loadable::Loadable;
-use crate::game::plugins::aiming_plugin::ArrowAnimationPlayer;
-use bevy::{asset::UntypedAssetId, prelude::*, render::render_resource::Face, utils::HashMap};
+use crate::game::plugins::{
+    aiming_plugin::ArrowAnimationPlayer,
+    game_scene_plugin::{CurrentLevel, GameSceneAnimationPlayer},
+};
+use bevy::{
+    asset::UntypedAssetId, prelude::*, render::render_resource::Face, utils::hashbrown::HashMap,
+};
+use bevy_picking_rapier::bevy_rapier3d::{
+    dynamics::{Ccd, RigidBody},
+    geometry::ColliderMassProperties,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum GameScene {
@@ -20,10 +29,22 @@ pub enum GameLevel {
     Level1,
 }
 
+impl GameLevel {
+    pub fn get_filename(&self) -> &str {
+        match self {
+            Self::Level1 => "models/levels/level1.glb",
+        }
+    }
+}
+
+pub trait GameAnimationSource {
+    fn get_animation_filename(&self) -> &str;
+}
+
 #[derive(Resource, Clone)]
 pub struct GameAssets {
     scenes: HashMap<GameScene, Handle<Scene>>,
-    animations: HashMap<String, Handle<AnimationClip>>,
+    animations: HashMap<String, HashMap<Name, Handle<AnimationClip>>>,
     materials: HashMap<GameMaterial, Handle<StandardMaterial>>,
 }
 
@@ -32,8 +53,31 @@ impl GameAssets {
         self.scenes[&asset].clone_weak()
     }
 
-    pub fn get_animation(&self, asset_name: &str) -> Handle<AnimationClip> {
-        self.animations[asset_name].clone_weak()
+    pub fn get_next_animation(
+        &mut self,
+        asset_name: &Name,
+        asset_source: &impl GameAnimationSource,
+        asset_server: &AssetServer,
+    ) -> Handle<AnimationClip> {
+        let filename = asset_source.get_animation_filename();
+        let Some(animations) = self.animations.get_mut(filename) else {
+            let mut animations = HashMap::default();
+            animations.insert(
+                asset_name.clone(),
+                asset_server.load(format!("{}#Animation0", filename)),
+            );
+            self.animations.insert(filename.to_string(), animations);
+            return self.animations[filename][asset_name].clone_weak();
+        };
+        if let Some(animation) = animations.get(asset_name) {
+            return animation.clone_weak();
+        }
+        let next_index = animations.len();
+        animations.insert(
+            asset_name.clone(),
+            asset_server.load(format!("{}#Animation{}", filename, next_index)),
+        );
+        animations[asset_name].clone_weak()
     }
 
     pub fn get_material(&self, asset: GameMaterial) -> Handle<StandardMaterial> {
@@ -41,10 +85,23 @@ impl GameAssets {
     }
 
     pub fn init_assets_system(
+        mut commands: Commands,
         mut materials: ResMut<Assets<StandardMaterial>>,
         new_base_materials: Query<&Handle<StandardMaterial>, Added<Handle<StandardMaterial>>>,
-        mut new_arrow_animations: Query<(&Name, &mut AnimationPlayer), Added<ArrowAnimationPlayer>>,
-        game_assets: Res<GameAssets>,
+        mut new_arrow_animations: Query<
+            (&Name, &mut AnimationPlayer),
+            (
+                Added<ArrowAnimationPlayer>,
+                Without<GameSceneAnimationPlayer>,
+            ),
+        >,
+        mut new_game_scene_animations: Query<
+            (Entity, &Name, &mut AnimationPlayer),
+            Added<GameSceneAnimationPlayer>,
+        >,
+        mut game_assets: ResMut<GameAssets>,
+        asset_server: Res<AssetServer>,
+        current_level: Res<CurrentLevel>,
     ) {
         for handle in new_base_materials.iter() {
             let Some(material) = materials.get_mut(handle) else {
@@ -61,8 +118,25 @@ impl GameAssets {
         }
 
         for (name, mut player) in new_arrow_animations.iter_mut() {
-            player.play(game_assets.get_animation(name.as_str()));
+            player.play(game_assets.get_next_animation(
+                name,
+                &ArrowAnimationPlayer,
+                &*asset_server,
+            ));
             player.pause();
+        }
+        for (entity, name, mut player) in new_game_scene_animations.iter_mut() {
+            player.play(game_assets.get_next_animation(
+                name,
+                &GameSceneAnimationPlayer(current_level.unwrap()),
+                &*asset_server,
+            ));
+            player.repeat();
+            commands.entity(entity).insert((
+                Ccd::enabled(),
+                RigidBody::KinematicPositionBased,
+                ColliderMassProperties::Density(100.0),
+            ));
         }
     }
 }
@@ -83,7 +157,11 @@ impl IntoIterator for &GameAssets {
         self.scenes
             .values()
             .map(Into::<UntypedAssetId>::into)
-            .chain(self.animations.values().map(Into::<UntypedAssetId>::into))
+            .chain(
+                self.animations
+                    .values()
+                    .flat_map(|v| v.values().map(Into::into)),
+            )
             .collect::<Vec<_>>()
             .into_iter()
     }
@@ -103,28 +181,7 @@ impl FromWorld for GameAssets {
         );
         scenes.insert(
             GameScene::Level(GameLevel::Level1),
-            asset_server.load("models/levels/level1.glb#Scene0"),
-        );
-        let mut animations = HashMap::default();
-        animations.insert(
-            "Arrow".to_string(),
-            asset_server.load("models/arrow.glb#Animation1"),
-        );
-        animations.insert(
-            "Arrow.001".to_string(),
-            asset_server.load("models/arrow.glb#Animation0"),
-        );
-        animations.insert(
-            "Arrow.002".to_string(),
-            asset_server.load("models/arrow.glb#Animation2"),
-        );
-        animations.insert(
-            "Arrow.003".to_string(),
-            asset_server.load("models/arrow.glb#Animation3"),
-        );
-        animations.insert(
-            "Arrow.004".to_string(),
-            asset_server.load("models/arrow.glb#Animation4"),
+            asset_server.load(format!("{}#Scene0", GameLevel::Level1.get_filename())),
         );
         let mut materials = HashMap::default();
         materials.insert(
@@ -137,7 +194,7 @@ impl FromWorld for GameAssets {
         );
         Self {
             scenes,
-            animations,
+            animations: Default::default(),
             materials,
         }
     }

@@ -3,7 +3,7 @@ use crate::{
     game::components::{GameCamera, GameEntity, Player},
     log,
     resources::{
-        game_assets::{GameAssets, GameMaterial, GameScene},
+        game_assets::{GameAnimationSource, GameAssets, GameMaterial, GameScene},
         inputs::Inputs,
     },
     AppState,
@@ -64,6 +64,12 @@ pub fn spawn_arrow(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: 
 #[derive(Component)]
 pub struct ArrowAnimationPlayer;
 
+impl GameAnimationSource for ArrowAnimationPlayer {
+    fn get_animation_filename(&self) -> &str {
+        "models/arrow.glb"
+    }
+}
+
 #[derive(Component, Default)]
 pub struct ArrowScene {
     power: f32,
@@ -105,10 +111,9 @@ fn initialize_arrow_components(
 fn update_arrow(
     window: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
-    player: Query<(Entity, &Transform), With<Player>>,
+    player: Query<&Transform, With<Player>>,
     mut arrow: Query<(&Transform, &mut ArrowScene)>,
     drag_info: Res<DragInfo>,
-    rapier_context: Res<RapierContext>,
 ) {
     let Some(window) = window.iter().next() else {
         return;
@@ -118,7 +123,7 @@ fn update_arrow(
         return;
     };
 
-    let Some((player_entity, player_transform)) = player.iter().next() else {
+    let Some(player_transform) = player.iter().next() else {
         log!("no player");
         return;
     };
@@ -152,13 +157,11 @@ fn update_arrow(
         x => (x - MIN) / (MAX - MIN),
     };
 
-    let normal = get_contact_normal(player_entity, &rapier_context).unwrap_or(Vec3::Z);
-
     let Some(ray) = camera.viewport_to_world(camera_transform, drag_info.point) else {
         return;
     };
 
-    let Some(distance) = ray.intersect_plane(arrow_point, Plane3d::new(normal)) else {
+    let Some(distance) = ray.intersect_plane(arrow_point, Plane3d::new(Vec3::Z)) else {
         return;
     };
 
@@ -309,15 +312,14 @@ fn aim_player(
 }
 
 fn fire_player(
-    mut player: Query<(Entity, &Transform, &mut Player, &mut ExternalImpulse)>,
+    mut player: Query<(&Transform, &mut Player, &mut ExternalImpulse)>,
     arrow: Query<&ArrowScene>,
     camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
     mut drag_info: ResMut<DragInfo>,
-    rapier_context: Res<RapierContext>,
 ) {
     let (camera, camera_transform) = camera.single();
 
-    let Some((entity, transform, mut player, mut impulse)) = player.iter_mut().next() else {
+    let Some((transform, mut player, mut impulse)) = player.iter_mut().next() else {
         return;
     };
 
@@ -327,14 +329,12 @@ fn fire_player(
 
     if drag_info_data.confirmed {
         if let Some(new_impulse) = calculate_impulse(
-            entity,
             transform,
             &mut player,
             drag_info_data,
             &arrow,
             camera,
             camera_transform,
-            &rapier_context,
         ) {
             *impulse = new_impulse;
         }
@@ -342,24 +342,20 @@ fn fire_player(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn calculate_impulse(
-    entity: Entity,
     transform: &Transform,
     player: &mut Player,
     drag_info_data: &DragInfoData,
     arrow: &Query<'_, '_, &ArrowScene>,
     camera: &Camera,
     camera_transform: &GlobalTransform,
-    rapier_context: &Res<RapierContext>,
 ) -> Option<ExternalImpulse> {
     let arrow = arrow.iter().next()?;
     if arrow.power <= 0.0 {
         return None;
     }
-    let normal = get_contact_normal(entity, rapier_context).unwrap_or(Vec3::Z);
     let ray = camera.viewport_to_world(camera_transform, drag_info_data.point)?;
-    let distance = ray.intersect_plane(transform.translation, Plane3d::new(normal))?;
+    let distance = ray.intersect_plane(transform.translation, Plane3d::new(Vec3::Z))?;
     let point = ray.get_point(distance);
     player.shots -= 1;
     let push = (transform.translation - point).normalize() * arrow.power * 250.0;
@@ -369,19 +365,4 @@ fn calculate_impulse(
         transform.translation,
         transform.translation,
     ))
-}
-
-fn get_contact_normal(player_entity: Entity, rapier_context: &Res<RapierContext>) -> Option<Vec3> {
-    let Some(contact_pair) = rapier_context.contact_pairs_with(player_entity).next() else {
-        log!("no contact pair");
-        return None;
-    };
-
-    contact_pair
-        .manifold(0)
-        .map(|m| m.normal())
-        .and_then(|n| match n == Vec3::ZERO {
-            true => None,
-            false => Some(n),
-        })
 }

@@ -44,6 +44,7 @@ pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos:
             },
             ColliderMassProperties::Mass(10.0),
             ActiveEvents::COLLISION_EVENTS,
+            Ccd::enabled(),
             GameEntity,
         ));
     spawn_arrow(commands, game_assets, pos);

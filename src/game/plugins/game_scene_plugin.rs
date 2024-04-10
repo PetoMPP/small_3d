@@ -4,10 +4,10 @@ use crate::{
         components::{GameCamera, GameEntity, Player},
         plugins::player_plugin::spawn_player,
     },
-    resources::game_assets::{GameAssets, GameLevel, GameScene},
+    resources::game_assets::{GameAnimationSource, GameAssets, GameLevel, GameScene},
     AppState,
 };
-use bevy::{input::keyboard::KeyboardInput, prelude::*};
+use bevy::{input::keyboard::KeyboardInput, prelude::*, scene::SceneInstance};
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 
 pub struct GameScenePlugin;
@@ -27,6 +27,7 @@ impl Plugin for GameScenePlugin {
                 (
                     set_game_scene,
                     initialize_game_scene,
+                    initialize_game_scene_components,
                     reload_scene,
                     reload_on_bounds_collision,
                     reload_on_pass_through_goal,
@@ -87,6 +88,21 @@ fn reset_state(
     **drag_info = None;
 }
 
+#[derive(Component)]
+struct GameSceneScene;
+
+#[derive(Component)]
+struct GameSceneEntity;
+
+#[derive(Component)]
+pub struct GameSceneAnimationPlayer(pub GameLevel);
+
+impl GameAnimationSource for GameSceneAnimationPlayer {
+    fn get_animation_filename(&self) -> &str {
+        self.0.get_filename()
+    }
+}
+
 fn spawn_game_scene(
     mut commands: Commands,
     game_scene: Res<CurrentLevel>,
@@ -98,7 +114,28 @@ fn spawn_game_scene(
                 scene: game_assets.get_scene(GameScene::Level(*game_level)),
                 ..default()
             })
-            .insert(GameEntity);
+            .insert((GameSceneScene, GameEntity));
+    }
+}
+
+fn initialize_game_scene_components(
+    mut commands: Commands,
+    spawned_game_scene_scene: Query<&Children, (Added<SceneInstance>, With<GameSceneScene>)>,
+    mut new_animations: Query<(Entity, &Parent), Added<AnimationPlayer>>,
+    current_level: Res<CurrentLevel>,
+) {
+    let mut game_scene_entities = Vec::new();
+    for children in spawned_game_scene_scene.iter() {
+        for child in children.iter() {
+            commands.entity(*child).insert(GameSceneEntity);
+            game_scene_entities.push(*child);
+        }
+    }
+
+    for (entity, parent) in new_animations.iter_mut() {
+        if game_scene_entities.contains(&**parent) {
+            commands.entity(entity).insert(GameSceneAnimationPlayer(current_level.unwrap()));
+        }
     }
 }
 
