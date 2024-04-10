@@ -13,7 +13,7 @@ Check it out on https://petompp.github.io/small_3d/ (Best played on mobile)
     - [x] Loadable level models
     - [x] Colliding objects
     - [x] Pass-through goal gates
-    - [ ] Moving obstacles
+    - [x] Moving obstacles
     - [ ] Collectibles
         - [ ] Points
         - [ ] Power ups
