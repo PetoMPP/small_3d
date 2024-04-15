@@ -1,5 +1,6 @@
 use super::components::{GameCamera, GameLight};
 use super::plugins::aiming_plugin::AimingPlugin;
+use super::plugins::custom_tweening_plugin::CustomTweeningPlugin;
 use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameLevel};
 use super::plugins::player_plugin::PlayerPlugin;
 use crate::resources::game_assets::GameLevel;
@@ -8,6 +9,7 @@ use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 use bevy_picking_rapier::RapierBackend;
+use bevy_tweening::TweeningPlugin;
 
 pub struct GamePlugin;
 
@@ -15,10 +17,16 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Time::<Fixed>::from_hz(60.0))
             .add_plugins(RapierPhysicsPlugin::<NoUserData>::default().in_fixed_schedule())
-            .add_plugins(RapierDebugRenderPlugin::default())
+            // .add_plugins(RapierDebugRenderPlugin::default())
+            .add_plugins(TweeningPlugin)
             .add_plugins(DefaultPickingPlugins)
             .add_plugins(RapierBackend)
-            .add_plugins((AimingPlugin, PlayerPlugin, GameScenePlugin))
+            .add_plugins((
+                AimingPlugin,
+                PlayerPlugin,
+                GameScenePlugin,
+                CustomTweeningPlugin,
+            ))
             .add_systems(OnEnter(AppState::InGame), start_game);
     }
 }

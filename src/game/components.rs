@@ -46,10 +46,14 @@ pub struct GameLight;
 #[derive(Component)]
 pub struct Player {
     pub shots: u32,
+    pub points: i32,
 }
 
 impl Default for Player {
     fn default() -> Self {
-        Self { shots: 10 }
+        Self {
+            shots: 10,
+            points: 0,
+        }
     }
 }
