@@ -7,13 +7,17 @@ use crate::{
             player_plugin::spawn_player,
         },
     },
-    resources::game_assets::{GameAnimationSource, GameAssets, GameLevel, GameScene},
+    resources::{
+        game_assets::{GameAnimationSource, GameAssets, GameLevel, GameScene},
+        random::Random,
+    },
     AppState,
 };
 use bevy::{input::keyboard::KeyboardInput, prelude::*, scene::SceneInstance};
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 use bevy_tweening::{Animator, EaseFunction, EaseMethod, RepeatCount, RepeatStrategy, Tween};
-use std::time::Duration;
+use rand::Rng;
+use std::{hash::{DefaultHasher, Hash, Hasher}, time::Duration};
 
 pub struct GameScenePlugin;
 
@@ -80,7 +84,6 @@ fn reset_state(
     mut drag_info: ResMut<DragInfo>,
     entities: Query<(Entity, &GameEntity)>,
 ) {
-    println!("Clearing game entities");
     for (entity, _) in entities.iter() {
         commands.entity(entity).despawn_recursive();
     }
@@ -113,6 +116,7 @@ fn spawn_game_scene(
     mut commands: Commands,
     game_scene: Res<CurrentLevel>,
     game_assets: Res<GameAssets>,
+    mut rng: NonSendMut<Random>,
 ) {
     if let Some(game_level) = &game_scene.0 {
         commands
@@ -121,6 +125,9 @@ fn spawn_game_scene(
                 ..default()
             })
             .insert((GameSceneScene, GameEntity));
+        let mut default_hasher = DefaultHasher::new();
+        game_level.hash(&mut default_hasher);
+        rng.reset(default_hasher.finish());
     }
 }
 
@@ -205,6 +212,7 @@ fn initialize_game_scene(
     transforms: Query<&Transform>,
     animation_players: Query<&AnimationPlayer>,
     game_assets: Res<GameAssets>,
+    mut rng: NonSendMut<Random>,
 ) {
     for (entity, name, children) in entities.iter() {
         let Ok(object_type) = GameLevelObjectType::try_from(name) else {
@@ -271,7 +279,7 @@ fn initialize_game_scene(
                     Animator::<RelativeScale>::new(
                         Tween::new(
                             EaseFunction::SineInOut,
-                            Duration::from_secs_f32(0.5),
+                            Duration::from_secs_f32(rng.gen_range(0.3..1.0)),
                             RelativeScaleLens {
                                 start: Vec3::splat(0.95),
                                 end: Vec3::splat(1.08),
@@ -288,7 +296,7 @@ fn initialize_game_scene(
                     entity_commands.insert(Animator::<Rotation>::new(
                         Tween::new(
                             EaseMethod::Linear,
-                            Duration::from_secs_f32(1.25),
+                            Duration::from_secs_f32(rng.gen_range(0.7..2.0)),
                             RotationLens,
                         )
                         .with_repeat_strategy(RepeatStrategy::Repeat)
