@@ -2,13 +2,18 @@ use super::{aiming_plugin::DragInfo, player_plugin::PLAYER_RADIUS};
 use crate::{
     game::{
         components::{GameCamera, GameEntity, Player},
-        plugins::player_plugin::spawn_player,
+        plugins::{
+            custom_tweening_plugin::{RelativeScale, RelativeScaleLens, Rotation, RotationLens},
+            player_plugin::spawn_player,
+        },
     },
     resources::game_assets::{GameAnimationSource, GameAssets, GameLevel, GameScene},
     AppState,
 };
 use bevy::{input::keyboard::KeyboardInput, prelude::*, scene::SceneInstance};
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
+use bevy_tweening::{Animator, EaseFunction, EaseMethod, RepeatCount, RepeatStrategy, Tween};
+use std::time::Duration;
 
 pub struct GameScenePlugin;
 
@@ -28,6 +33,7 @@ impl Plugin for GameScenePlugin {
                     set_game_scene,
                     initialize_game_scene,
                     initialize_game_scene_components,
+                    reward_points_on_collision,
                     reload_scene,
                     reload_on_bounds_collision,
                     reload_on_pass_through_goal,
@@ -134,9 +140,16 @@ fn initialize_game_scene_components(
 
     for (entity, parent) in new_animations.iter_mut() {
         if game_scene_entities.contains(&**parent) {
-            commands.entity(entity).insert(GameSceneAnimationPlayer(current_level.unwrap()));
+            commands
+                .entity(entity)
+                .insert(GameSceneAnimationPlayer(current_level.unwrap()));
         }
     }
+}
+
+#[derive(Component, Clone, Copy, Default)]
+struct GamePoints {
+    reward: i32,
 }
 
 enum GameLevelObjectType {
@@ -144,6 +157,7 @@ enum GameLevelObjectType {
     Bounds,
     Spawn,
     Goal(Vec2),
+    Point(GamePoints),
 }
 
 impl TryFrom<&Name> for GameLevelObjectType {
@@ -166,6 +180,18 @@ impl TryFrom<&Name> for GameLevelObjectType {
                 })
                 .map(Self::Goal)
                 .ok_or(()),
+
+            s if s.starts_with("Point") => s
+                .split_once('_')
+                .map(|(_, d)| d.chars().take_while(|c| c != &'.').collect::<String>())
+                .and_then(|d| d.parse().ok())
+                .map(|reward| GamePoints {
+                    reward,
+                    ..Default::default()
+                })
+                .map(Self::Point)
+                .ok_or(()),
+
             _ => Err(()),
         }
     }
@@ -177,6 +203,7 @@ fn initialize_game_scene(
     meshes: Res<Assets<Mesh>>,
     mesh_entities: Query<&Handle<Mesh>>,
     transforms: Query<&Transform>,
+    animation_players: Query<&AnimationPlayer>,
     game_assets: Res<GameAssets>,
 ) {
     for (entity, name, children) in entities.iter() {
@@ -186,32 +213,25 @@ fn initialize_game_scene(
 
         match object_type {
             GameLevelObjectType::Object => {
-                let Some(children) = children else {
-                    continue;
-                };
-                for child in children.iter() {
-                    let Some(collider) =
-                        get_collider_from_mesh_entity(*child, &meshes, &mesh_entities)
-                    else {
-                        continue;
-                    };
-                    let mut entity_commands = commands.entity(*child);
-                    entity_commands.insert(collider);
+                if let Some(children) = children {
+                    insert_collider_into_entities(
+                        &mut commands,
+                        children,
+                        &meshes,
+                        &mesh_entities,
+                        (),
+                    );
                 }
             }
             GameLevelObjectType::Bounds => {
-                let Some(children) = children else {
-                    continue;
-                };
-                for child in children.iter() {
-                    let Some(collider) =
-                        get_collider_from_mesh_entity(*child, &meshes, &mesh_entities)
-                    else {
-                        continue;
-                    };
-                    let mut entity_commands = commands.entity(*child);
-                    entity_commands.insert(collider);
-                    entity_commands.insert((GameBounds, Visibility::Hidden));
+                if let Some(children) = children {
+                    insert_collider_into_entities(
+                        &mut commands,
+                        children,
+                        &meshes,
+                        &mesh_entities,
+                        (GameBounds, Visibility::Hidden),
+                    );
                 }
             }
             GameLevelObjectType::Spawn => {
@@ -225,27 +245,76 @@ fn initialize_game_scene(
                 );
             }
             GameLevelObjectType::Goal(dir) => {
-                let Some(children) = children else {
-                    continue;
-                };
-                for child in children.iter() {
-                    let Ok(mesh) = mesh_entities.get(*child) else {
-                        continue;
-                    };
-                    let Some(mesh) = meshes.get(mesh) else {
-                        continue;
-                    };
-                    let Some(collider) =
-                        Collider::from_bevy_mesh(mesh, &ComputedColliderShape::TriMesh)
-                    else {
-                        continue;
-                    };
-                    commands
-                        .entity(*child)
-                        .insert((collider, Sensor, GameGoal(dir)));
+                if let Some(children) = children {
+                    insert_collider_into_entities(
+                        &mut commands,
+                        children,
+                        &meshes,
+                        &mesh_entities,
+                        (Sensor, GameGoal(dir)),
+                    );
+                }
+            }
+            GameLevelObjectType::Point(pt) => {
+                if let Some(children) = children {
+                    insert_collider_into_entities(
+                        &mut commands,
+                        children,
+                        &meshes,
+                        &mesh_entities,
+                        (pt, Sensor),
+                    );
+                }
+
+                let entity_commands = &mut commands.entity(entity);
+                entity_commands.insert((
+                    Animator::<RelativeScale>::new(
+                        Tween::new(
+                            EaseFunction::SineInOut,
+                            Duration::from_secs_f32(0.5),
+                            RelativeScaleLens {
+                                start: Vec3::splat(0.95),
+                                end: Vec3::splat(1.08),
+                            },
+                        )
+                        .with_repeat_strategy(RepeatStrategy::MirroredRepeat)
+                        .with_repeat_count(RepeatCount::Infinite),
+                    ),
+                    RelativeScale::default(),
+                    Rotation::new(Vec3::Z),
+                ));
+
+                if animation_players.get(entity).is_err() {
+                    entity_commands.insert(Animator::<Rotation>::new(
+                        Tween::new(
+                            EaseMethod::Linear,
+                            Duration::from_secs_f32(1.25),
+                            RotationLens,
+                        )
+                        .with_repeat_strategy(RepeatStrategy::Repeat)
+                        .with_repeat_count(RepeatCount::Infinite),
+                    ));
                 }
             }
         }
+    }
+}
+
+fn insert_collider_into_entities<'a>(
+    commands: &mut Commands,
+    entities: impl IntoIterator<Item = &'a Entity>,
+    meshes: &Res<Assets<Mesh>>,
+    mesh_entities: &Query<&Handle<Mesh>>,
+    bundle: impl Bundle + Clone,
+) {
+    for entity in entities {
+        let Some(collider) = get_collider_from_mesh_entity(*entity, meshes, mesh_entities) else {
+            continue;
+        };
+        commands
+            .entity(*entity)
+            .insert(collider)
+            .insert(bundle.clone());
     }
 }
 
@@ -254,16 +323,34 @@ fn get_collider_from_mesh_entity(
     meshes: &Res<Assets<Mesh>>,
     mesh_entities: &Query<&Handle<Mesh>>,
 ) -> Option<Collider> {
-    let Ok(mesh) = mesh_entities.get(entity) else {
-        return None;
-    };
-    let Some(mesh) = meshes.get(mesh) else {
-        return None;
-    };
-    Collider::from_bevy_mesh(mesh, &ComputedColliderShape::TriMesh)
+    Collider::from_bevy_mesh(
+        meshes.get(mesh_entities.get(entity).ok()?)?,
+        &ComputedColliderShape::TriMesh,
+    )
 }
 
-#[derive(Component)]
+fn reward_points_on_collision(
+    mut commands: Commands,
+    game_points: Query<(Entity, &Parent, &GamePoints), With<GamePoints>>,
+    mut player: Query<(Entity, &mut Player)>,
+    rapier_context: ResMut<RapierContext>,
+) {
+    let Some((player_entity, mut player)) = player.iter_mut().next() else {
+        return;
+    };
+
+    for (points_entity, parent_entity, game_points) in game_points.iter() {
+        if rapier_context
+            .intersection_pair(player_entity, points_entity)
+            .unwrap_or_default()
+        {
+            commands.entity(**parent_entity).despawn_recursive();
+            player.points += game_points.reward;
+        }
+    }
+}
+
+#[derive(Component, Clone, Copy)]
 struct GameBounds;
 
 fn reload_on_bounds_collision(
@@ -293,7 +380,7 @@ fn reload_on_bounds_collision(
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 struct GameGoal(Vec2);
 
 fn reload_on_pass_through_goal(

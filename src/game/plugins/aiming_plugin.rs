@@ -11,10 +11,10 @@ use crate::{
 use bevy::{prelude::*, scene::SceneInstance};
 use bevy_mod_picking::prelude::*;
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
-use bevy_tweening::{
-    component_animator_system, Animator, EaseFunction, Lens, RepeatCount, RepeatStrategy, Tween,
-};
+use bevy_tweening::{Animator, EaseFunction, RepeatCount, RepeatStrategy, Tween};
 use std::time::Duration;
+
+use super::custom_tweening_plugin::{update_scale, RelativeScale, RelativeScaleLens};
 
 pub struct AimingPlugin;
 
@@ -30,11 +30,10 @@ impl Plugin for AimingPlugin {
                     fire_player,
                     initialize_arrow_components,
                     update_arrow,
-                    component_animator_system::<ArrowScene>,
                 )
                     .run_if(in_state(AppState::InGame)),
             )
-            .add_systems(Update, adjust_arrow.after(update_arrow));
+            .add_systems(Update, adjust_arrow.after(update_arrow).after(update_scale));
     }
 }
 
@@ -49,11 +48,15 @@ pub fn spawn_arrow(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: 
         .insert((
             GameEntity,
             ArrowScene::default(),
-            Animator::<ArrowScene>::new(
+            RelativeScale::default(),
+            Animator::<RelativeScale>::new(
                 Tween::new(
                     EaseFunction::QuadraticInOut,
-                    Duration::from_secs_f32(0.5),
-                    ArrowSizeLens,
+                    Duration::from_secs_f32(0.66),
+                    RelativeScaleLens {
+                        start: Vec3::splat(0.98),
+                        end: Vec3::splat(1.03),
+                    },
                 )
                 .with_repeat_strategy(RepeatStrategy::MirroredRepeat)
                 .with_repeat_count(RepeatCount::Infinite),
@@ -74,15 +77,6 @@ impl GameAnimationSource for ArrowAnimationPlayer {
 pub struct ArrowScene {
     power: f32,
     angle: f32,
-    size_tween: f32,
-}
-
-pub struct ArrowSizeLens;
-
-impl Lens<ArrowScene> for ArrowSizeLens {
-    fn lerp(&mut self, target: &mut ArrowScene, ratio: f32) {
-        target.size_tween = 0.98.lerp(1.03, ratio);
-    }
 }
 
 #[derive(Component)]
@@ -208,9 +202,7 @@ fn adjust_arrow(
 
     let transform = player_transform
         .with_rotation(Quat::from_rotation_z(arrow_scene.angle))
-        .with_scale(Vec3::splat(
-            0.65.lerp(1.10, arrow_scene.power) * arrow_scene.size_tween,
-        ));
+        .with_scale(0.65.lerp(1.10, arrow_scene.power) * arrow_transform.scale);
 
     if *arrow_visibility != visibility {
         *arrow_visibility = visibility;

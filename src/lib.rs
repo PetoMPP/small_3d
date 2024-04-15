@@ -1,7 +1,7 @@
 use crate::common::plugins::user_input_plugin::UserInputPlugin;
 use crate::main_menu::main_menu_plugin::MainMenuPlugin;
 use bevy::{asset::AssetMetaCheck, prelude::*};
-use bevy_tweening::TweeningPlugin;
+// use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use game::game_plugin::GamePlugin;
 use resources::{resources_plugin::ResourcesPlugin, text_styles::TextStyles};
 
@@ -40,7 +40,7 @@ fn app() -> App {
             ..Default::default()
         }))
         .init_state::<AppState>()
-        .add_plugins(TweeningPlugin)
+        // .add_plugins(WorldInspectorPlugin::default())
         .add_plugins(ResourcesPlugin)
         .add_plugins(MainMenuPlugin)
         .add_plugins(GamePlugin)
