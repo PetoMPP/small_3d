@@ -307,7 +307,7 @@ fn initialize_game_scene(
 fn insert_collider_into_entities<'a>(
     commands: &mut Commands,
     entities: impl IntoIterator<Item = &'a Entity>,
-    meshes: &Res<Assets<Mesh>>,
+    meshes: &Assets<Mesh>,
     mesh_entities: &Query<&Handle<Mesh>>,
     bundle: impl Bundle + Clone,
 ) {
@@ -324,7 +324,7 @@ fn insert_collider_into_entities<'a>(
 
 fn get_collider_from_mesh_entity(
     entity: Entity,
-    meshes: &Res<Assets<Mesh>>,
+    meshes: &Assets<Mesh>,
     mesh_entities: &Query<&Handle<Mesh>>,
 ) -> Option<Collider> {
     Collider::from_bevy_mesh(
