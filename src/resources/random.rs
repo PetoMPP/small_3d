@@ -1,6 +1,6 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
 use bevy::prelude::{Deref, DerefMut};
 use rand::{rngs::StdRng, SeedableRng};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[derive(Deref, DerefMut)]
 pub struct Random {

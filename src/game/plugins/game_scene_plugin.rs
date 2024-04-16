@@ -190,10 +190,7 @@ impl TryFrom<&Name> for GameLevelObjectType {
                 .split_once('_')
                 .map(|(_, d)| d.chars().take_while(|c| c != &'.').collect::<String>())
                 .and_then(|d| d.parse().ok())
-                .map(|reward| GamePoints {
-                    reward,
-                    ..Default::default()
-                })
+                .map(|reward| GamePoints { reward })
                 .map(Self::Point)
                 .ok_or(()),
 
@@ -202,6 +199,7 @@ impl TryFrom<&Name> for GameLevelObjectType {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn initialize_game_scene(
     mut commands: Commands,
     entities: Query<(Entity, &Name, Option<&Children>), Added<Name>>,

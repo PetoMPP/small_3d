@@ -84,6 +84,7 @@ impl GameAssets {
         self.materials[&asset].clone_weak()
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn init_assets_system(
         mut commands: Commands,
         mut materials: ResMut<Assets<StandardMaterial>>,
@@ -118,18 +119,14 @@ impl GameAssets {
         }
 
         for (name, mut player) in new_arrow_animations.iter_mut() {
-            player.play(game_assets.get_next_animation(
-                name,
-                &ArrowAnimationPlayer,
-                &*asset_server,
-            ));
+            player.play(game_assets.get_next_animation(name, &ArrowAnimationPlayer, &asset_server));
             player.pause();
         }
         for (entity, name, mut player) in new_game_scene_animations.iter_mut() {
             player.play(game_assets.get_next_animation(
                 name,
                 &GameSceneAnimationPlayer(current_level.unwrap()),
-                &*asset_server,
+                &asset_server,
             ));
             player.repeat();
             commands.entity(entity).insert((
