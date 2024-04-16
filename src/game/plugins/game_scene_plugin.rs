@@ -17,7 +17,7 @@ use bevy::{input::keyboard::KeyboardInput, prelude::*, scene::SceneInstance};
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 use bevy_tweening::{Animator, EaseFunction, EaseMethod, RepeatCount, RepeatStrategy, Tween};
 use rand::Rng;
-use std::{hash::{DefaultHasher, Hash, Hasher}, time::Duration};
+use std::time::Duration;
 
 pub struct GameScenePlugin;
 
@@ -125,9 +125,7 @@ fn spawn_game_scene(
                 ..default()
             })
             .insert((GameSceneScene, GameEntity));
-        let mut default_hasher = DefaultHasher::new();
-        game_level.hash(&mut default_hasher);
-        rng.reset(default_hasher.finish());
+        rng.reset(game_level);
     }
 }
 

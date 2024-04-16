@@ -1,3 +1,4 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
 use bevy::prelude::{Deref, DerefMut};
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -7,16 +8,14 @@ pub struct Random {
 }
 
 impl Random {
-    pub fn new(seed: u64) -> Self {
-        let mut x = Vec::new();
-        x.extend_from_slice(&seed.to_ne_bytes());
-        x.extend_from_slice([0u8; 24].as_ref());
-        let seed: [u8; 32] = x.try_into().unwrap();
-        let rng = StdRng::from_seed(seed);
+    pub fn new(seed: impl Hash) -> Self {
+        let mut hasher = DefaultHasher::new();
+        seed.hash(&mut hasher);
+        let rng = StdRng::seed_from_u64(hasher.finish());
         Self { rng }
     }
 
-    pub fn reset(&mut self, seed: u64) {
+    pub fn reset(&mut self, seed: impl Hash) {
         *self = Self::new(seed);
     }
 }
