@@ -10,13 +10,16 @@ pub struct GameCamera {
     offset: Vec2,
 }
 
+#[derive(Component)]
+pub struct GameUiCamera;
+
 impl GameCamera {
     pub fn get_distance(&self) -> f32 {
         self.distance
     }
 
     pub fn distance(&mut self, distance: f32) {
-        self.distance = (self.distance + distance).clamp(1.0, 25.0);
+        self.distance = (self.distance + distance).clamp(4.0, 8.0);
     }
 
     pub fn get_offset(&self) -> Vec2 {
@@ -34,7 +37,7 @@ impl GameCamera {
 impl Default for GameCamera {
     fn default() -> Self {
         Self {
-            distance: 5.0,
+            distance: 6.0,
             offset: Vec2::new(0.0, PI / 3.0),
         }
     }

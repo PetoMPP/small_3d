@@ -1,4 +1,4 @@
-use super::components::{GameCamera, GameLight};
+use super::components::{GameCamera, GameLight, GameUiCamera};
 use super::plugins::aiming_plugin::AimingPlugin;
 use super::plugins::custom_tweening_plugin::CustomTweeningPlugin;
 use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameLevel};
@@ -62,6 +62,17 @@ fn start_game(
             ..Default::default()
         })
         .insert(GameCamera::default());
+    commands
+        .spawn(Camera2dBundle {
+            camera: Camera {
+                order: 1,
+                clear_color: ClearColorConfig::None,
+                ..Default::default()
+            },
+            transform: Transform::from_xyz(0.0, 0.0, 100.0),
+            ..Default::default()
+        })
+        .insert(GameUiCamera);
 
     // game scene
     set_scene.send(SetGameLevel(GameLevel::Level1));

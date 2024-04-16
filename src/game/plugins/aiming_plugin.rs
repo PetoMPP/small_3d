@@ -1,3 +1,4 @@
+use super::custom_tweening_plugin::{update_scale, RelativeScale, RelativeScaleLens};
 use crate::{
     common::plugins::user_input_plugin::{Pressed, UserInput, UserInputPosition},
     game::components::{GameCamera, GameEntity, Player},
@@ -12,9 +13,11 @@ use bevy::{prelude::*, scene::SceneInstance};
 use bevy_mod_picking::prelude::*;
 use bevy_picking_rapier::bevy_rapier3d::prelude::*;
 use bevy_tweening::{Animator, EaseFunction, RepeatCount, RepeatStrategy, Tween};
-use std::time::Duration;
-
-use super::custom_tweening_plugin::{update_scale, RelativeScale, RelativeScaleLens};
+use bevy_vector_shapes::{
+    painter::ShapePainter,
+    shapes::{DiscPainter, ThicknessType},
+};
+use std::{f32::consts::PI, time::Duration};
 
 pub struct AimingPlugin;
 
@@ -30,10 +33,36 @@ impl Plugin for AimingPlugin {
                     fire_player,
                     initialize_arrow_components,
                     update_arrow,
+                    draw_circle,
                 )
                     .run_if(in_state(AppState::InGame)),
             )
             .add_systems(Update, adjust_arrow.after(update_arrow).after(update_scale));
+    }
+}
+
+pub fn draw_circle(mut painter: ShapePainter, window: Query<&Window>, drag_info: Res<DragInfo>) {
+    let Some(window) = window.iter().next() else {
+        return;
+    };
+    if drag_info.is_some() {
+        return;
+    }
+    painter.set_2d();
+    painter.color = Color::WHITE.with_a(0.9);
+    painter.hollow = true;
+    painter.thickness = 0.8;
+    painter.thickness_type = ThicknessType::Screen;
+    const STEPS: usize = 16;
+    for i in 0..=STEPS {
+        const STEP: f32 = 1.0 / STEPS as f32 * 2.0 * PI;
+        const OFFSET: f32 = 0.3 * STEP;
+        let angle = i as f32 * STEP + OFFSET;
+        painter.arc(
+            window.height().min(window.width()) / 3.5 / 2.0,
+            angle,
+            angle + STEP / 2.7,
+        );
     }
 }
 
