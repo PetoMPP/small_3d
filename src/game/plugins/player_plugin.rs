@@ -8,7 +8,7 @@ use crate::{
     AppState,
 };
 use bevy::{input::mouse::MouseWheel, prelude::*};
-use bevy_picking_rapier::bevy_rapier3d::prelude::*;
+use bevy_rapier3d::prelude::*;
 
 pub struct PlayerPlugin;
 

@@ -6,9 +6,7 @@ use super::plugins::player_plugin::PlayerPlugin;
 use crate::resources::game_assets::GameLevel;
 use crate::AppState;
 use bevy::prelude::*;
-use bevy_mod_picking::prelude::*;
-use bevy_picking_rapier::bevy_rapier3d::prelude::*;
-use bevy_picking_rapier::RapierBackend;
+use bevy_rapier3d::prelude::*;
 use bevy_tweening::TweeningPlugin;
 
 pub struct GamePlugin;
@@ -19,8 +17,6 @@ impl Plugin for GamePlugin {
             .add_plugins(RapierPhysicsPlugin::<NoUserData>::default().in_fixed_schedule())
             // .add_plugins(RapierDebugRenderPlugin::default())
             .add_plugins(TweeningPlugin)
-            .add_plugins(DefaultPickingPlugins)
-            .add_plugins(RapierBackend)
             .add_plugins((
                 AimingPlugin,
                 PlayerPlugin,

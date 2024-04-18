@@ -46,6 +46,7 @@ impl Default for GameCamera {
 #[derive(Component)]
 pub struct GameLight;
 
+// TODO: Move to resource
 #[derive(Component)]
 pub struct Player {
     pub shots: u32,

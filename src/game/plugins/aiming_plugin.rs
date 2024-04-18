@@ -1,7 +1,7 @@
 use super::custom_tweening_plugin::{update_scale, RelativeScale, RelativeScaleLens};
 use crate::{
-    common::plugins::user_input_plugin::{Pressed, UserInput, UserInputPosition},
-    game::components::{GameCamera, GameEntity, Player},
+    common::plugins::user_input_plugin::{UserInput, UserInputPosition},
+    game::components::{GameCamera, GameEntity, GameUiCamera, Player},
     log,
     resources::{
         game_assets::{GameAnimationSource, GameAssets, GameMaterial, GameScene},
@@ -10,12 +10,11 @@ use crate::{
     AppState,
 };
 use bevy::{prelude::*, scene::SceneInstance};
-use bevy_mod_picking::prelude::*;
-use bevy_picking_rapier::bevy_rapier3d::prelude::*;
+use bevy_rapier3d::prelude::*;
 use bevy_tweening::{Animator, EaseFunction, RepeatCount, RepeatStrategy, Tween};
 use bevy_vector_shapes::{
-    painter::ShapePainter,
-    shapes::{DiscPainter, ThicknessType},
+    painter::{BuildShapeChildren, ShapeConfig},
+    shapes::{DiscSpawner, ThicknessType},
 };
 use std::{f32::consts::PI, time::Duration};
 
@@ -33,7 +32,6 @@ impl Plugin for AimingPlugin {
                     fire_player,
                     initialize_arrow_components,
                     update_arrow,
-                    draw_circle,
                 )
                     .run_if(in_state(AppState::InGame)),
             )
@@ -41,29 +39,28 @@ impl Plugin for AimingPlugin {
     }
 }
 
-pub fn draw_circle(mut painter: ShapePainter, window: Query<&Window>, drag_info: Res<DragInfo>) {
-    let Some(window) = window.iter().next() else {
-        return;
-    };
-    if drag_info.is_some() {
-        return;
-    }
-    painter.set_2d();
-    painter.color = Color::WHITE.with_a(0.9);
-    painter.hollow = true;
-    painter.thickness = 0.8;
-    painter.thickness_type = ThicknessType::Screen;
-    const STEPS: usize = 16;
-    for i in 0..=STEPS {
-        const STEP: f32 = 1.0 / STEPS as f32 * 2.0 * PI;
-        const OFFSET: f32 = 0.3 * STEP;
-        let angle = i as f32 * STEP + OFFSET;
-        painter.arc(
-            window.height().min(window.width()) / 3.5 / 2.0,
-            angle,
-            angle + STEP / 2.7,
-        );
-    }
+#[derive(Component)]
+pub struct AimCircle(f32);
+
+pub fn spawn_circle(commands: &mut Commands, window: &Window) {
+    let mut shapes_config = ShapeConfig::default_2d();
+    shapes_config.color = Color::WHITE.with_a(0.9);
+    shapes_config.hollow = true;
+    shapes_config.thickness = 0.8;
+    shapes_config.thickness_type = ThicknessType::Screen;
+    let radius = window.height().min(window.width()) / 3.5 / 2.0;
+
+    commands
+        .spawn((AimCircle(radius), Visibility::Visible, GameEntity))
+        .with_shape_children(&shapes_config, |builder| {
+            const STEPS: usize = 16;
+            for i in 0..=STEPS {
+                const STEP: f32 = 1.0 / STEPS as f32 * 2.0 * PI;
+                const OFFSET: f32 = 0.3 * STEP;
+                let angle = i as f32 * STEP + OFFSET;
+                builder.arc(radius, angle, angle + STEP / 2.7);
+            }
+        });
 }
 
 pub fn spawn_arrow(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
@@ -193,6 +190,7 @@ fn update_arrow(
     let angle = (drag_point.y - arrow_point.y).atan2(drag_point.x - arrow_point.x)
         - std::f32::consts::FRAC_PI_2;
 
+    log!("power: {}, angle: {}", power, angle.to_degrees());
     arrow_scene.power = power;
     arrow_scene.angle = angle;
 }
@@ -280,26 +278,32 @@ pub struct DragInfoData {
 }
 
 fn start_player_aim(
-    player: Query<(Entity, &Player)>,
+    aim_circle: Query<&AimCircle>,
+    user_input: Res<Inputs<UserInput>>,
     user_input_position: Res<UserInputPosition>,
-    mut presses: EventReader<Pointer<Pressed>>,
+    ui_camera: Query<(&Camera, &GlobalTransform), With<GameUiCamera>>,
     mut drag_info: ResMut<DragInfo>,
 ) {
-    let Some((player_entity, player)) = player.iter().next() else {
+    let Some(circle) = aim_circle.iter().next() else {
+        return;
+    };
+    let Some((camera, camera_transform)) = ui_camera.iter().next() else {
         return;
     };
 
-    for press in presses.read() {
-        log!("press");
-        if press.target == player_entity && player.shots > 0 {
-            log!("press target");
-            let Some(position) = user_input_position.get(*press.user_input) else {
-                log!("no input position");
-                break;
-            };
+    for user_input in user_input.iter_just_pressed() {
+        let Some(position) = user_input_position.get(**user_input) else {
+            log!("no input position");
+            break;
+        };
+        let Some(world_pos) = camera.viewport_to_world_2d(camera_transform, position) else {
+            log!("no world position");
+            break;
+        };
+        if world_pos.distance_squared(Vec2::ZERO) <= circle.0.powi(2) {
             **drag_info = Some(DragInfoData {
                 point: position,
-                user_input: press.user_input,
+                user_input: *user_input,
                 confirmed: false,
             });
         }
