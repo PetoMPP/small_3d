@@ -1,12 +1,12 @@
 use super::loadable::Loadable;
 use crate::game::plugins::{
     aiming_plugin::ArrowAnimationPlayer,
-    game_scene_plugin::{CurrentLevel, GameSceneAnimationPlayer},
+    game_scene_plugin::{GameData, GameSceneAnimationPlayer},
 };
 use bevy::{
     asset::UntypedAssetId, prelude::*, render::render_resource::Face, utils::hashbrown::HashMap,
 };
-use bevy_picking_rapier::bevy_rapier3d::{
+use bevy_rapier3d::{
     dynamics::{Ccd, RigidBody},
     geometry::ColliderMassProperties,
 };
@@ -102,7 +102,7 @@ impl GameAssets {
         >,
         mut game_assets: ResMut<GameAssets>,
         asset_server: Res<AssetServer>,
-        current_level: Res<CurrentLevel>,
+        game_data: Res<GameData>,
     ) {
         for handle in new_base_materials.iter() {
             let Some(material) = materials.get_mut(handle) else {
@@ -125,7 +125,7 @@ impl GameAssets {
         for (entity, name, mut player) in new_game_scene_animations.iter_mut() {
             player.play(game_assets.get_next_animation(
                 name,
-                &GameSceneAnimationPlayer(current_level.unwrap()),
+                &GameSceneAnimationPlayer(game_data.level.unwrap()),
                 &asset_server,
             ));
             player.repeat();

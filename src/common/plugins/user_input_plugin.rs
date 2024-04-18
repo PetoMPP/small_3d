@@ -1,52 +1,15 @@
 use crate::resources::inputs::Inputs;
 use bevy::{input::mouse::mouse_button_input_system, prelude::*, utils::HashMap};
-use bevy_mod_picking::{
-    backend::HitData,
-    events::{Down, Pointer},
-    input::touch::touch_pick_events,
-    pointer::PointerId,
-};
 
 pub struct UserInputPlugin;
 
 #[derive(Clone, PartialEq, Debug, Reflect)]
 pub struct Pressed {
     pub user_input: UserInput,
-    pub hit: HitData,
-}
-
-trait ToFromPointer<T: std::fmt::Debug + Clone + Reflect> {
-    fn to_from_pointer(value: Pointer<T>) -> Pointer<Self>
-    where
-        Self: std::fmt::Debug + Clone + Reflect;
-}
-
-impl ToFromPointer<Down> for Pressed {
-    fn to_from_pointer(value: Pointer<Down>) -> Pointer<Self> {
-        Pointer::<Pressed> {
-            target: value.target,
-            pointer_id: value.pointer_id,
-            pointer_location: value.pointer_location.clone(),
-            event: Pressed {
-                user_input: value.pointer_id.into(),
-                hit: value.hit.clone(),
-            },
-        }
-    }
 }
 
 #[derive(Debug, Deref, DerefMut, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
 pub struct UserInput(pub u64);
-
-impl From<PointerId> for UserInput {
-    fn from(value: PointerId) -> Self {
-        match value {
-            PointerId::Mouse => UserInput(0),
-            PointerId::Touch(id) => UserInput(id),
-            PointerId::Custom(uuid) => UserInput(uuid.as_u64_pair().0),
-        }
-    }
-}
 
 #[derive(Debug, Resource, Clone, Default, Deref, DerefMut)]
 pub struct UserInputPosition(HashMap<u64, Vec2>);
@@ -69,20 +32,14 @@ impl Plugin for UserInputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Inputs<UserInput>>()
             .init_resource::<UserInputPosition>()
-            .add_event::<Pointer<Pressed>>()
             .add_systems(
                 PreUpdate,
                 clear_input_state.before(mouse_button_input_system),
             )
             .add_systems(
                 PreUpdate,
-                (
-                    handle_pressed,
-                    handle_input_state_touch,
-                    handle_input_state_mouse,
-                )
-                    .after(mouse_button_input_system)
-                    .after(touch_pick_events),
+                (handle_input_state_touch, handle_input_state_mouse)
+                    .after(mouse_button_input_system),
             );
     }
 }
@@ -143,14 +100,5 @@ fn handle_input_state_mouse(
                 .next()
                 .and_then(|window| window.cursor_position()),
         );
-    }
-}
-
-fn handle_pressed(
-    mut down_reader: EventReader<Pointer<Down>>,
-    mut pressed_writer: EventWriter<Pointer<Pressed>>,
-) {
-    for down in down_reader.read() {
-        pressed_writer.send(Pressed::to_from_pointer(down.clone()));
     }
 }

@@ -1,4 +1,7 @@
-use super::{aiming_plugin::DragInfo, player_plugin::PLAYER_RADIUS};
+use super::{
+    aiming_plugin::{spawn_circle, DragInfo},
+    player_plugin::PLAYER_RADIUS,
+};
 use crate::{
     game::{
         components::{GameCamera, GameEntity, Player},
@@ -14,22 +17,26 @@ use crate::{
     AppState,
 };
 use bevy::{input::keyboard::KeyboardInput, prelude::*, scene::SceneInstance};
-use bevy_picking_rapier::bevy_rapier3d::prelude::*;
+use bevy_rapier3d::prelude::*;
 use bevy_tweening::{Animator, EaseFunction, EaseMethod, RepeatCount, RepeatStrategy, Tween};
 use rand::Rng;
 use std::time::Duration;
 
 pub struct GameScenePlugin;
 
-#[derive(Resource, Default, Clone, Deref, DerefMut)]
-pub struct CurrentLevel(pub Option<GameLevel>);
+#[derive(Resource, Default, Clone)]
+pub struct GameData {
+    pub level: Option<GameLevel>,
+    pub shots: i32,
+    pub points: i32,
+}
 
 #[derive(Event, Deref, DerefMut)]
 pub struct SetGameLevel(pub GameLevel);
 
 impl Plugin for GameScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<CurrentLevel>()
+        app.init_resource::<GameData>()
             .add_event::<SetGameLevel>()
             .add_systems(
                 Update,
@@ -48,23 +55,20 @@ impl Plugin for GameScenePlugin {
                 Update,
                 (reset_state, spawn_game_scene)
                     .run_if(in_state(AppState::InGame))
-                    .run_if(resource_changed::<CurrentLevel>),
+                    .run_if(resource_changed::<GameData>),
             );
     }
 }
 
-fn set_game_scene(
-    mut game_scene: ResMut<CurrentLevel>,
-    mut set_game_scene: EventReader<SetGameLevel>,
-) {
-    for set_game_scene in set_game_scene.read() {
-        **game_scene = Some(**set_game_scene);
+fn set_game_scene(mut game_data: ResMut<GameData>, mut set_game_level: EventReader<SetGameLevel>) {
+    for set_game_level in set_game_level.read() {
+        game_data.level = Some(**set_game_level);
     }
 }
 
 fn reload_scene(
     mut set_game_scene: EventWriter<SetGameLevel>,
-    game_scene: Res<CurrentLevel>,
+    game_data: Res<GameData>,
     mut key_input: EventReader<KeyboardInput>,
 ) {
     let Some(key_input) = key_input.read().next() else {
@@ -72,8 +76,8 @@ fn reload_scene(
     };
 
     if key_input.state.is_pressed() && key_input.key_code == KeyCode::KeyR {
-        if let Some(game_scene) = **game_scene {
-            set_game_scene.send(SetGameLevel(game_scene));
+        if let Some(game_level) = game_data.level {
+            set_game_scene.send(SetGameLevel(game_level));
         }
     }
 }
@@ -114,11 +118,11 @@ impl GameAnimationSource for GameSceneAnimationPlayer {
 
 fn spawn_game_scene(
     mut commands: Commands,
-    game_scene: Res<CurrentLevel>,
+    game_data: Res<GameData>,
     game_assets: Res<GameAssets>,
     mut rng: NonSendMut<Random>,
 ) {
-    if let Some(game_level) = &game_scene.0 {
+    if let Some(game_level) = &game_data.level {
         commands
             .spawn(SceneBundle {
                 scene: game_assets.get_scene(GameScene::Level(*game_level)),
@@ -133,7 +137,7 @@ fn initialize_game_scene_components(
     mut commands: Commands,
     spawned_game_scene_scene: Query<&Children, (Added<SceneInstance>, With<GameSceneScene>)>,
     mut new_animations: Query<(Entity, &Parent), Added<AnimationPlayer>>,
-    current_level: Res<CurrentLevel>,
+    game_data: Res<GameData>,
 ) {
     let mut game_scene_entities = Vec::new();
     for children in spawned_game_scene_scene.iter() {
@@ -147,7 +151,7 @@ fn initialize_game_scene_components(
         if game_scene_entities.contains(&**parent) {
             commands
                 .entity(entity)
-                .insert(GameSceneAnimationPlayer(current_level.unwrap()));
+                .insert(GameSceneAnimationPlayer(game_data.level.unwrap()));
         }
     }
 }
@@ -202,6 +206,7 @@ impl TryFrom<&Name> for GameLevelObjectType {
 #[allow(clippy::too_many_arguments)]
 fn initialize_game_scene(
     mut commands: Commands,
+    window: Query<&Window>,
     entities: Query<(Entity, &Name, Option<&Children>), Added<Name>>,
     meshes: Res<Assets<Mesh>>,
     mesh_entities: Query<&Handle<Mesh>>,
@@ -210,6 +215,9 @@ fn initialize_game_scene(
     game_assets: Res<GameAssets>,
     mut rng: NonSendMut<Random>,
 ) {
+    let Some(window) = window.iter().next() else {
+        return;
+    };
     for (entity, name, children) in entities.iter() {
         let Ok(object_type) = GameLevelObjectType::try_from(name) else {
             continue;
@@ -247,6 +255,7 @@ fn initialize_game_scene(
                     &game_assets,
                     transform.translation + Vec3::Z * PLAYER_RADIUS,
                 );
+                spawn_circle(&mut commands, window);
             }
             GameLevelObjectType::Goal(dir) => {
                 if let Some(children) = children {
@@ -360,7 +369,7 @@ struct GameBounds;
 fn reload_on_bounds_collision(
     mut set_game_level: EventWriter<SetGameLevel>,
     mut ground_collisions: EventReader<CollisionEvent>,
-    game_level: Res<CurrentLevel>,
+    game_data: Res<GameData>,
     player: Query<Entity, With<Player>>,
     bounds: Query<Entity, With<GameBounds>>,
 ) {
@@ -370,7 +379,7 @@ fn reload_on_bounds_collision(
     let Some(bounds_entity) = bounds.iter().next() else {
         return;
     };
-    let Some(game_level) = **game_level else {
+    let Some(game_level) = game_data.level else {
         return;
     };
 
@@ -389,7 +398,7 @@ struct GameGoal(Vec2);
 
 fn reload_on_pass_through_goal(
     mut set_game_level: EventWriter<SetGameLevel>,
-    game_level: Res<CurrentLevel>,
+    game_data: Res<GameData>,
     player: Query<(Entity, &Transform), With<Player>>,
     goals: Query<(Entity, &GlobalTransform, &GameGoal)>,
     rapier_context: Res<RapierContext>,
@@ -398,7 +407,7 @@ fn reload_on_pass_through_goal(
     let Some((player_entity, player_transform)) = player.iter().next() else {
         return;
     };
-    let Some(game_level) = **game_level else {
+    let Some(game_level) = game_data.level else {
         return;
     };
 
