@@ -26,13 +26,38 @@ pub enum GameMaterial {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum GameLevel {
-    Level1,
+    Demo,
+}
+
+pub struct GameLevelMeta {
+    pub shots: u32,
+    pub star_point_thresholds: [u32; 2],
+}
+
+impl Into<GameData> for GameLevel {
+    fn into(self) -> GameData {
+        let meta = self.get_meta();
+        GameData {
+            level: Some(self),
+            shots: meta.shots,
+            points: 0,
+        }
+    }
 }
 
 impl GameLevel {
     pub fn get_filename(&self) -> &str {
         match self {
-            Self::Level1 => "models/levels/level1.glb",
+            Self::Demo => "models/levels/demo.glb",
+        }
+    }
+
+    pub fn get_meta(&self) -> GameLevelMeta {
+        match self {
+            Self::Demo => GameLevelMeta {
+                shots: 3,
+                star_point_thresholds: [50, 75],
+            },
         }
     }
 }
@@ -177,8 +202,8 @@ impl FromWorld for GameAssets {
             asset_server.load("models/arrow.glb#Scene0"),
         );
         scenes.insert(
-            GameScene::Level(GameLevel::Level1),
-            asset_server.load(format!("{}#Scene0", GameLevel::Level1.get_filename())),
+            GameScene::Level(GameLevel::Demo),
+            asset_server.load(format!("{}#Scene0", GameLevel::Demo.get_filename())),
         );
         let mut materials = HashMap::default();
         materials.insert(
