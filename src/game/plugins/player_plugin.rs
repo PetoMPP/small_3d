@@ -4,7 +4,7 @@ use crate::game::plugins::aiming_plugin::spawn_arrow;
 use crate::resources::game_assets::{GameAssets, GameScene};
 use crate::resources::inputs::Inputs;
 use crate::{
-    game::components::{GameCamera, GameEntity, GameLight, Player},
+    game::components::{GameCamera, GameEntity, GameLight},
     AppState,
 };
 use bevy::{input::mouse::MouseWheel, prelude::*};
@@ -21,6 +21,9 @@ impl Plugin for PlayerPlugin {
     }
 }
 
+#[derive(Component)]
+pub struct Player;
+
 pub const PLAYER_RADIUS: f32 = 0.2;
 
 pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
@@ -31,7 +34,7 @@ pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos:
             ..Default::default()
         })
         .insert((
-            Player::default(),
+            Player,
             Sleeping::default(),
             ExternalImpulse::default(),
             RigidBody::Dynamic,

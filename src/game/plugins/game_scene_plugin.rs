@@ -1,10 +1,10 @@
 use super::{
     aiming_plugin::{spawn_circle, DragInfo},
-    player_plugin::PLAYER_RADIUS,
+    player_plugin::{Player, PLAYER_RADIUS},
 };
 use crate::{
     game::{
-        components::{GameCamera, GameEntity, Player},
+        components::{GameCamera, GameEntity},
         plugins::{
             custom_tweening_plugin::{RelativeScale, RelativeScaleLens, Rotation, RotationLens},
             player_plugin::spawn_player,
@@ -27,9 +27,12 @@ pub struct GameScenePlugin;
 #[derive(Resource, Default, Clone)]
 pub struct GameData {
     pub level: Option<GameLevel>,
-    pub shots: i32,
+    pub shots: u32,
     pub points: i32,
 }
+
+#[derive(Event)]
+struct LevelChanged;
 
 #[derive(Event, Deref, DerefMut)]
 pub struct SetGameLevel(pub GameLevel);
@@ -38,6 +41,7 @@ impl Plugin for GameScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameData>()
             .add_event::<SetGameLevel>()
+            .add_event::<LevelChanged>()
             .add_systems(
                 Update,
                 (
@@ -53,16 +57,15 @@ impl Plugin for GameScenePlugin {
             )
             .add_systems(
                 Update,
-                (reset_state, spawn_game_scene)
-                    .run_if(in_state(AppState::InGame))
-                    .run_if(resource_changed::<GameData>),
+                (reset_state, spawn_game_scene).run_if(in_state(AppState::InGame)),
             );
     }
 }
 
-fn set_game_scene(mut game_data: ResMut<GameData>, mut set_game_level: EventReader<SetGameLevel>) {
+fn set_game_scene(mut game_data: ResMut<GameData>, mut set_game_level: EventReader<SetGameLevel>, mut level_changed: EventWriter<LevelChanged>) {
     for set_game_level in set_game_level.read() {
-        game_data.level = Some(**set_game_level);
+        *game_data = set_game_level.0.into();
+        level_changed.send(LevelChanged);
     }
 }
 
@@ -87,7 +90,12 @@ fn reset_state(
     mut camera: Query<&mut GameCamera>,
     mut drag_info: ResMut<DragInfo>,
     entities: Query<(Entity, &GameEntity)>,
+    mut level_changed: EventReader<LevelChanged>,
 ) {
+    if level_changed.read().next().is_none() {
+        return;
+    }
+
     for (entity, _) in entities.iter() {
         commands.entity(entity).despawn_recursive();
     }
@@ -121,11 +129,16 @@ fn spawn_game_scene(
     game_data: Res<GameData>,
     game_assets: Res<GameAssets>,
     mut rng: NonSendMut<Random>,
+    mut level_changed: EventReader<LevelChanged>,
 ) {
-    if let Some(game_level) = &game_data.level {
+    if level_changed.read().next().is_none() {
+        return;
+    }
+
+    if let Some(game_level) = game_data.level {
         commands
             .spawn(SceneBundle {
-                scene: game_assets.get_scene(GameScene::Level(*game_level)),
+                scene: game_assets.get_scene(GameScene::Level(game_level)),
                 ..default()
             })
             .insert((GameSceneScene, GameEntity));
@@ -345,10 +358,11 @@ fn get_collider_from_mesh_entity(
 fn reward_points_on_collision(
     mut commands: Commands,
     game_points: Query<(Entity, &Parent, &GamePoints), With<GamePoints>>,
-    mut player: Query<(Entity, &mut Player)>,
+    player: Query<Entity, With<Player>>,
     rapier_context: ResMut<RapierContext>,
+    mut game_data: ResMut<GameData>,
 ) {
-    let Some((player_entity, mut player)) = player.iter_mut().next() else {
+    let Some(player_entity) = player.iter().next() else {
         return;
     };
 
@@ -358,7 +372,7 @@ fn reward_points_on_collision(
             .unwrap_or_default()
         {
             commands.entity(**parent_entity).despawn_recursive();
-            player.points += game_points.reward;
+            game_data.points += game_points.reward;
         }
     }
 }

@@ -71,5 +71,5 @@ fn start_game(
         .insert(GameUiCamera);
 
     // game scene
-    set_scene.send(SetGameLevel(GameLevel::Level1));
+    set_scene.send(SetGameLevel(GameLevel::Demo));
 }

@@ -1,7 +1,11 @@
-use super::custom_tweening_plugin::{update_scale, RelativeScale, RelativeScaleLens};
+use super::{
+    custom_tweening_plugin::{update_scale, RelativeScale, RelativeScaleLens},
+    game_scene_plugin::GameData,
+    player_plugin::Player,
+};
 use crate::{
     common::plugins::user_input_plugin::{UserInput, UserInputPosition},
-    game::components::{GameCamera, GameEntity, GameUiCamera, Player},
+    game::components::{GameCamera, GameEntity, GameUiCamera},
     log,
     resources::{
         game_assets::{GameAnimationSource, GameAssets, GameMaterial, GameScene},
@@ -32,6 +36,7 @@ impl Plugin for AimingPlugin {
                     fire_player,
                     initialize_arrow_components,
                     update_arrow,
+                    set_circle_visibility,
                 )
                     .run_if(in_state(AppState::InGame)),
             )
@@ -51,16 +56,44 @@ pub fn spawn_circle(commands: &mut Commands, window: &Window) {
     let radius = window.height().min(window.width()) / 3.5 / 2.0;
 
     commands
-        .spawn((AimCircle(radius), Visibility::Visible, GameEntity))
+        .spawn((AimCircle(radius), GameEntity))
         .with_shape_children(&shapes_config, |builder| {
             const STEPS: usize = 16;
-            for i in 0..=STEPS {
+            for i in 1..=STEPS {
                 const STEP: f32 = 1.0 / STEPS as f32 * 2.0 * PI;
                 const OFFSET: f32 = 0.3 * STEP;
                 let angle = i as f32 * STEP + OFFSET;
                 builder.arc(radius, angle, angle + STEP / 2.7);
             }
         });
+}
+
+fn set_circle_visibility(
+    game_data: Res<GameData>,
+    circle: Query<&Children, With<AimCircle>>,
+    drag_info: Res<DragInfo>,
+    mut visibilities: Query<&mut Visibility>,
+) {
+    let Some(children) = circle.iter().next() else {
+        return;
+    };
+
+    if !game_data.is_changed() && !drag_info.is_changed() {
+        return;
+    }
+
+    let visible = match game_data.shots > 0 && drag_info.is_none() {
+        true => Visibility::Visible,
+        false => Visibility::Hidden,
+    };
+
+    for child in children.iter() {
+        if let Ok(mut visibility) = visibilities.get_mut(*child) {
+            if *visibility != visible {
+                *visibility = visible;
+            }
+        }
+    }
 }
 
 pub fn spawn_arrow(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
@@ -190,7 +223,6 @@ fn update_arrow(
     let angle = (drag_point.y - arrow_point.y).atan2(drag_point.x - arrow_point.x)
         - std::f32::consts::FRAC_PI_2;
 
-    log!("power: {}, angle: {}", power, angle.to_degrees());
     arrow_scene.power = power;
     arrow_scene.angle = angle;
 }
@@ -263,7 +295,7 @@ fn get_power_color(power: f32) -> Color {
         x if x < 0.5 => FROM.lerp(THROUGH, x * 2.0),
         x => THROUGH.lerp(TO, (x - 0.5) * 2.0),
     };
-    // Color::rgba_linear_from_array(Vec3::ZERO.lerp(rgb, BRIGHTNESS).extend(0.4))
+
     Color::rgb_linear_from_array(Vec3::ZERO.lerp(rgb, BRIGHTNESS))
 }
 
@@ -283,7 +315,11 @@ fn start_player_aim(
     user_input_position: Res<UserInputPosition>,
     ui_camera: Query<(&Camera, &GlobalTransform), With<GameUiCamera>>,
     mut drag_info: ResMut<DragInfo>,
+    game_data: ResMut<GameData>,
 ) {
+    if game_data.shots == 0 {
+        return;
+    }
     let Some(circle) = aim_circle.iter().next() else {
         return;
     };
@@ -337,14 +373,15 @@ fn aim_player(
 }
 
 fn fire_player(
-    mut player: Query<(&Transform, &mut Player, &mut ExternalImpulse)>,
+    mut player: Query<(&Transform, &mut ExternalImpulse), With<Player>>,
     arrow: Query<&ArrowScene>,
     camera: Query<(&Camera, &GlobalTransform), With<GameCamera>>,
     mut drag_info: ResMut<DragInfo>,
+    mut game_data: ResMut<GameData>,
 ) {
     let (camera, camera_transform) = camera.single();
 
-    let Some((transform, mut player, mut impulse)) = player.iter_mut().next() else {
+    let Some((transform, mut impulse)) = player.iter_mut().next() else {
         return;
     };
 
@@ -355,7 +392,7 @@ fn fire_player(
     if drag_info_data.confirmed {
         if let Some(new_impulse) = calculate_impulse(
             transform,
-            &mut player,
+            &mut game_data,
             drag_info_data,
             &arrow,
             camera,
@@ -369,7 +406,7 @@ fn fire_player(
 
 fn calculate_impulse(
     transform: &Transform,
-    player: &mut Player,
+    game_data: &mut GameData,
     drag_info_data: &DragInfoData,
     arrow: &Query<'_, '_, &ArrowScene>,
     camera: &Camera,
@@ -382,7 +419,7 @@ fn calculate_impulse(
     let ray = camera.viewport_to_world(camera_transform, drag_info_data.point)?;
     let distance = ray.intersect_plane(transform.translation, Plane3d::new(Vec3::Z))?;
     let point = ray.get_point(distance);
-    player.shots -= 1;
+    game_data.shots -= 1;
     let push = (transform.translation - point).normalize() * arrow.power * 250.0;
 
     Some(ExternalImpulse::at_point(

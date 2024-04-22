@@ -45,19 +45,3 @@ impl Default for GameCamera {
 
 #[derive(Component)]
 pub struct GameLight;
-
-// TODO: Move to resource
-#[derive(Component)]
-pub struct Player {
-    pub shots: u32,
-    pub points: i32,
-}
-
-impl Default for Player {
-    fn default() -> Self {
-        Self {
-            shots: 10,
-            points: 0,
-        }
-    }
-}
