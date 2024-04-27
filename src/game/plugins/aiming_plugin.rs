@@ -33,16 +33,18 @@ impl Plugin for AimingPlugin {
             .add_systems(
                 Update,
                 (
-                    start_player_aim,
-                    cancel_player_aim,
-                    aim_player,
-                    fire_player,
-                    initialize_arrow_components,
-                    update_arrow,
+                    (
+                        start_player_aim,
+                        cancel_player_aim,
+                        aim_player,
+                        fire_player,
+                        initialize_arrow_components,
+                        update_arrow,
+                    )
+                        .run_if(in_state(GameRunningState(true))),
                     set_circle_visibility,
                 )
-                    .run_if(in_state(AppState::InGame))
-                    .run_if(in_state(GameRunningState(true))),
+                    .run_if(in_state(AppState::InGame)),
             )
             .add_systems(
                 Update,
