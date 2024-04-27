@@ -1,10 +1,12 @@
 use super::{
     aiming_plugin::{spawn_circle, DragInfo},
+    custom_tweening_plugin::GameTween,
     player_plugin::{Player, PLAYER_RADIUS},
 };
 use crate::{
     game::{
         components::{GameCamera, GameEntity},
+        game_plugin::GameRunningState,
         plugins::{
             custom_tweening_plugin::{RelativeScale, RelativeScaleLens, Rotation, RotationLens},
             player_plugin::spawn_player,
@@ -53,16 +55,25 @@ impl Plugin for GameScenePlugin {
                     reload_on_bounds_collision,
                     reload_on_pass_through_goal,
                 )
-                    .run_if(in_state(AppState::InGame)),
+                    .run_if(in_state(AppState::InGame))
+                    .run_if(in_state(GameRunningState(true))),
             )
             .add_systems(
                 Update,
-                (reset_state, spawn_game_scene).run_if(in_state(AppState::InGame)),
-            );
+                (reset_state, spawn_game_scene)
+                    .run_if(in_state(AppState::InGame))
+                    .run_if(in_state(GameRunningState(true))),
+            )
+            .add_systems(OnEnter(GameRunningState(false)), pause_animation_players)
+            .add_systems(OnEnter(GameRunningState(true)), resume_animation_players);
     }
 }
 
-fn set_game_scene(mut game_data: ResMut<GameData>, mut set_game_level: EventReader<SetGameLevel>, mut level_changed: EventWriter<LevelChanged>) {
+fn set_game_scene(
+    mut game_data: ResMut<GameData>,
+    mut set_game_level: EventReader<SetGameLevel>,
+    mut level_changed: EventWriter<LevelChanged>,
+) {
     for set_game_level in set_game_level.read() {
         *game_data = set_game_level.0.into();
         level_changed.send(LevelChanged);
@@ -308,17 +319,21 @@ fn initialize_game_scene(
                     ),
                     RelativeScale::default(),
                     Rotation::new(Vec3::Z),
+                    GameTween,
                 ));
 
                 if animation_players.get(entity).is_err() {
-                    entity_commands.insert(Animator::<Rotation>::new(
-                        Tween::new(
-                            EaseMethod::Linear,
-                            Duration::from_secs_f32(rng.gen_range(0.7..2.0)),
-                            RotationLens,
-                        )
-                        .with_repeat_strategy(RepeatStrategy::Repeat)
-                        .with_repeat_count(RepeatCount::Infinite),
+                    entity_commands.insert((
+                        Animator::<Rotation>::new(
+                            Tween::new(
+                                EaseMethod::Linear,
+                                Duration::from_secs_f32(rng.gen_range(0.7..2.0)),
+                                RotationLens,
+                            )
+                            .with_repeat_strategy(RepeatStrategy::Repeat)
+                            .with_repeat_count(RepeatCount::Infinite),
+                        ),
+                        GameTween,
                     ));
                 }
             }
@@ -461,4 +476,20 @@ fn reload_on_pass_through_goal(
         set_game_level.send(SetGameLevel(game_level));
     }
     *started = None;
+}
+
+fn pause_animation_players(
+    mut game_scene_animations: Query<&mut AnimationPlayer, With<GameSceneAnimationPlayer>>,
+) {
+    for mut player in game_scene_animations.iter_mut() {
+        player.set_speed(0.0);
+    }
+}
+
+fn resume_animation_players(
+    mut game_scene_animations: Query<&mut AnimationPlayer, With<GameSceneAnimationPlayer>>,
+) {
+    for mut player in game_scene_animations.iter_mut() {
+        player.set_speed(1.0);
+    }
 }

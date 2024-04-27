@@ -42,6 +42,3 @@ impl Default for GameCamera {
         }
     }
 }
-
-#[derive(Component)]
-pub struct GameLight;
