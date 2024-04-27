@@ -1,6 +1,6 @@
-use crate::AppState;
+use crate::{game::game_plugin::GameRunningState, AppState};
 use bevy::{prelude::*, utils::HashMap};
-use bevy_tweening::{component_animator_system, Lens};
+use bevy_tweening::{component_animator_system, Animator, Lens};
 use std::f32::consts::PI;
 
 pub struct CustomTweeningPlugin;
@@ -16,9 +16,26 @@ impl Plugin for CustomTweeningPlugin {
                 update_rotation,
             )
                 .run_if(in_state(AppState::InGame)),
+        )
+        .add_systems(
+            OnEnter(GameRunningState(false)),
+            (
+                pause_game_tweening::<RelativeScale>,
+                pause_game_tweening::<Rotation>,
+            ),
+        )
+        .add_systems(
+            OnEnter(GameRunningState(true)),
+            (
+                resume_game_tweening::<RelativeScale>,
+                resume_game_tweening::<Rotation>,
+            ),
         );
     }
 }
+
+#[derive(Component, Clone, Copy)]
+pub struct GameTween;
 
 #[derive(Component, Clone, Copy)]
 pub struct RelativeScale(Vec3);
@@ -90,5 +107,17 @@ pub fn update_rotation(
         transform.rotation = initial_rotation;
         let point = transform.translation;
         transform.rotate_around(point, Quat::from_axis_angle(rotation.axis, rotation.angle));
+    }
+}
+
+fn pause_game_tweening<T: Component>(mut game_tweens: Query<&mut Animator<T>, With<GameTween>>) {
+    for mut animator in game_tweens.iter_mut() {
+        animator.set_speed(0.0);
+    }
+}
+
+fn resume_game_tweening<T: Component>(mut game_tweens: Query<&mut Animator<T>, With<GameTween>>) {
+    for mut animator in game_tweens.iter_mut() {
+        animator.set_speed(1.0);
     }
 }

@@ -4,7 +4,7 @@ use crate::game::plugins::aiming_plugin::spawn_arrow;
 use crate::resources::game_assets::{GameAssets, GameScene};
 use crate::resources::inputs::Inputs;
 use crate::{
-    game::components::{GameCamera, GameEntity, GameLight},
+    game::components::{GameCamera, GameEntity},
     AppState,
 };
 use bevy::{input::mouse::MouseWheel, prelude::*};
@@ -54,12 +54,9 @@ pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos:
 }
 
 fn move_camera_and_light(
-    moved_player: Query<Ref<Transform>, (With<Player>, Without<GameLight>, Without<GameCamera>)>,
-    mut camera: Query<(&mut Transform, Ref<GameCamera>), Without<GameLight>>,
-    mut light: Query<&mut Transform, (With<GameLight>, Without<GameCamera>)>,
+    moved_player: Query<Ref<Transform>, (With<Player>, Without<GameCamera>)>,
+    mut camera: Query<(&mut Transform, Ref<GameCamera>)>,
 ) {
-    const LIGHT_DISTANCE: f32 = 2.5;
-
     let Some(moved_player) = moved_player.iter().next() else {
         return;
     };
@@ -72,7 +69,6 @@ fn move_camera_and_light(
 
     // move camera and light
     let camera_dist = camera_comp.get_distance();
-    let mut light = light.single_mut();
 
     let offset = camera_comp.get_offset();
     let rotation = Quat::from_rotation_z(offset.x) * Quat::from_rotation_x(offset.y);
@@ -82,9 +78,6 @@ fn move_camera_and_light(
     )
     .with_rotation(rotation)
     .looking_at(moved_player.translation, Vec3::Z);
-
-    *light =
-        Transform::from_translation(moved_player.translation + Vec3::new(0.0, 0.0, LIGHT_DISTANCE));
 }
 
 fn zoom_camera(
