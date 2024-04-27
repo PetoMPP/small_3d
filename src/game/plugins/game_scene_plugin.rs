@@ -354,8 +354,8 @@ fn insert_collider_into_entities<'a>(
         };
         commands
             .entity(*entity)
-            .insert(collider)
-            .insert(bundle.clone());
+            .try_insert(collider)
+            .try_insert(bundle.clone());
     }
 }
 
