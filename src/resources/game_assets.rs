@@ -128,11 +128,24 @@ impl GameAssets {
         mut game_assets: ResMut<GameAssets>,
         asset_server: Res<AssetServer>,
         game_data: Res<GameData>,
+        mut material_queue: Local<HashMap<Handle<StandardMaterial>, u64>>,
     ) {
         for handle in new_base_materials.iter() {
+            material_queue.insert(handle.clone_weak(), 12);
+        }
+
+        let mut to_remove = Vec::new();
+        for (handle, remaining) in material_queue.iter_mut() {
+            *remaining -= 1;
+            if *remaining > 0 {
+                continue;
+            }
+
+            to_remove.push(handle.clone_weak());
             let Some(material) = materials.get_mut(handle) else {
                 continue;
             };
+
             material.reflectance = 0.0;
             material.double_sided = *handle
                 == game_assets.get_material(GameMaterial::AimArrowBorder)
@@ -141,6 +154,10 @@ impl GameAssets {
                 material.cull_mode = Some(Face::Front);
                 material.alpha_mode = AlphaMode::Blend;
             }
+        }
+
+        for handle in to_remove {
+            material_queue.remove(&handle);
         }
 
         for (name, mut player) in new_arrow_animations.iter_mut() {
