@@ -2,7 +2,7 @@ use super::components::{GameCamera, GameUiCamera};
 use super::plugins::aiming_plugin::AimingPlugin;
 use super::plugins::custom_tweening_plugin::CustomTweeningPlugin;
 use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameLevel};
-use super::plugins::game_ui_plugin::{spawn_ui, GameUiPlugin};
+use super::plugins::game_ui_plugin::GameUiPlugin;
 use super::plugins::player_plugin::PlayerPlugin;
 use crate::resources::game_assets::GameLevel;
 use crate::AppState;
@@ -58,7 +58,6 @@ fn start_game(
     mut commands: Commands,
     mut set_scene: EventWriter<SetGameLevel>,
     mut rapier_config: ResMut<RapierConfiguration>,
-    window: Query<&Window>,
 ) {
     // collision config
     rapier_config.gravity = Vec3::Z * -9.81;
@@ -66,9 +65,6 @@ fn start_game(
         dt: 1.0 / 60.0,
         substeps: 4,
     };
-
-    // ui
-    spawn_ui(&mut commands, window.single());
 
     // light
     commands.spawn(SpotLightBundle {
