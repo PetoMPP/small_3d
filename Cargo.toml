@@ -16,6 +16,7 @@ bevy = "0.13.1"
 bevy-inspector-egui = "0.23"
 # bevy_mod_picking = "0.18"
 # bevy_picking_rapier = "0.18"
+bevy_egui = { version = "0.27", default-features = false, features = ["render"] }
 bevy_rapier3d = "0.25"
 bevy_tweening = "0.10"
 bevy_vector_shapes = "0.7"
@@ -26,4 +27,4 @@ gloo = "0.11"
 web-sys = "0.3"
 
 [lints.clippy]
-type-complexity="allow"
+type-complexity = "allow"

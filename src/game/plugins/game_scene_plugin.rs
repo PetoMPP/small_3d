@@ -166,7 +166,7 @@ fn initialize_game_scene_components(
     let mut game_scene_entities = Vec::new();
     for children in spawned_game_scene_scene.iter() {
         for child in children.iter() {
-            commands.entity(*child).insert(GameSceneEntity);
+            commands.entity(*child).try_insert(GameSceneEntity);
             game_scene_entities.push(*child);
         }
     }
@@ -175,7 +175,7 @@ fn initialize_game_scene_components(
         if game_scene_entities.contains(&**parent) {
             commands
                 .entity(entity)
-                .insert(GameSceneAnimationPlayer(game_data.level.unwrap()));
+                .try_insert(GameSceneAnimationPlayer(game_data.level.unwrap()));
         }
     }
 }
@@ -304,7 +304,7 @@ fn initialize_game_scene(
                 }
 
                 let entity_commands = &mut commands.entity(entity);
-                entity_commands.insert((
+                entity_commands.try_insert((
                     Animator::<RelativeScale>::new(
                         Tween::new(
                             EaseFunction::SineInOut,
@@ -323,7 +323,7 @@ fn initialize_game_scene(
                 ));
 
                 if animation_players.get(entity).is_err() {
-                    entity_commands.insert((
+                    entity_commands.try_insert((
                         Animator::<Rotation>::new(
                             Tween::new(
                                 EaseMethod::Linear,

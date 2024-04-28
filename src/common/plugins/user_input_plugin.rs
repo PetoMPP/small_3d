@@ -65,6 +65,19 @@ fn handle_input_state_touch(
         user_input_position.set(id, Some(touch.position()));
     }
 
+    for touch in user_input
+        .iter_pressed()
+        .filter(|ui| ***ui != 0)
+        .copied()
+        .collect::<Vec<_>>()
+        .into_iter()
+    {
+        if let None = touch_input.get_pressed(*touch) {
+            user_input.release(touch);
+            user_input_position.set(*touch, None);
+        }
+    }
+
     for id in user_input_position
         .keys()
         .copied()
