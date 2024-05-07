@@ -1,4 +1,4 @@
-use crate::{game::game_plugin::GameRunningState, AppState};
+use crate::{game::game_plugin::GameState, AppState};
 use bevy::{prelude::*, utils::HashMap};
 use bevy_tweening::{component_animator_system, Animator, Lens};
 use std::f32::consts::PI;
@@ -18,14 +18,14 @@ impl Plugin for CustomTweeningPlugin {
                 .run_if(in_state(AppState::InGame)),
         )
         .add_systems(
-            OnEnter(GameRunningState(false)),
+            OnEnter(GameState::Paused),
             (
                 pause_game_tweening::<RelativeScale>,
                 pause_game_tweening::<Rotation>,
             ),
         )
         .add_systems(
-            OnEnter(GameRunningState(true)),
+            OnEnter(GameState::Playing),
             (
                 resume_game_tweening::<RelativeScale>,
                 resume_game_tweening::<Rotation>,

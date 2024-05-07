@@ -6,7 +6,7 @@ use super::{
 use crate::{
     game::{
         components::{GameCamera, GameEntity},
-        game_plugin::GameRunningState,
+        game_plugin::GameState,
         plugins::{
             custom_tweening_plugin::{RelativeScale, RelativeScaleLens, Rotation, RotationLens},
             player_plugin::spawn_player,
@@ -56,16 +56,16 @@ impl Plugin for GameScenePlugin {
                     reload_on_pass_through_goal,
                 )
                     .run_if(in_state(AppState::InGame))
-                    .run_if(in_state(GameRunningState(true))),
+                    .run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 Update,
                 (reset_state, spawn_game_scene)
                     .run_if(in_state(AppState::InGame))
-                    .run_if(in_state(GameRunningState(true))),
+                    .run_if(in_state(GameState::Playing)),
             )
-            .add_systems(OnEnter(GameRunningState(false)), pause_animation_players)
-            .add_systems(OnEnter(GameRunningState(true)), resume_animation_players);
+            .add_systems(OnEnter(GameState::Paused), pause_animation_players)
+            .add_systems(OnEnter(GameState::Playing), resume_animation_players);
     }
 }
 
