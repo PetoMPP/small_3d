@@ -10,13 +10,26 @@ use bevy::ecs::schedule::ScheduleLabel;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_tweening::TweeningPlugin;
+use strum::VariantArray;
+use strum_macros::{EnumIter, VariantArray};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, States, Deref, DerefMut)]
-pub struct GameRunningState(pub bool);
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, States, Default, EnumIter, VariantArray)]
+pub enum GameState {
+    #[default]
+    Playing,
+    Paused,
+    //Finished,
+}
 
-impl Default for GameRunningState {
-    fn default() -> Self {
-        Self(true)
+impl GameState {
+    pub fn next(&self) -> Self {
+        *Self::VARIANTS
+            .iter()
+            .cycle()
+            .skip_while(|v| v != &self)
+            .skip(1)
+            .next()
+            .unwrap()
     }
 }
 
@@ -28,11 +41,11 @@ pub struct PhysicsSchedule;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.init_schedule(PhysicsSchedule)
-            .init_state::<GameRunningState>()
+            .init_state::<GameState>()
             .insert_resource(Time::<Fixed>::from_hz(60.0))
             .add_systems(
                 FixedUpdate,
-                run_physics_schedule.run_if(in_state(GameRunningState(true))),
+                run_physics_schedule.run_if(in_state(GameState::Playing)),
             )
             .add_plugins(RapierPhysicsPlugin::<NoUserData>::default().in_schedule(PhysicsSchedule))
             // .add_plugins(RapierDebugRenderPlugin::default())

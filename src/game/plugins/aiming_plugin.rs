@@ -7,7 +7,7 @@ use crate::{
     common::plugins::user_input_plugin::{UserInput, UserInputPosition},
     game::{
         components::{GameCamera, GameEntity, GameUiCamera},
-        game_plugin::GameRunningState,
+        game_plugin::GameState,
     },
     log,
     resources::{
@@ -41,7 +41,7 @@ impl Plugin for AimingPlugin {
                         initialize_arrow_components,
                         update_arrow,
                     )
-                        .run_if(in_state(GameRunningState(true))),
+                        .run_if(in_state(GameState::Playing)),
                     set_circle_visibility,
                 )
                     .run_if(in_state(AppState::InGame)),
@@ -52,7 +52,7 @@ impl Plugin for AimingPlugin {
                     .after(update_arrow)
                     .after(update_scale)
                     .run_if(in_state(AppState::InGame))
-                    .run_if(in_state(GameRunningState(true))),
+                    .run_if(in_state(GameState::Playing)),
             );
     }
 }
@@ -85,7 +85,7 @@ fn set_circle_visibility(
     game_data: Res<GameData>,
     circle: Query<&Children, With<AimCircle>>,
     drag_info: Res<DragInfo>,
-    game_state: Res<State<GameRunningState>>,
+    game_state: Res<State<GameState>>,
     mut visibilities: Query<&mut Visibility>,
 ) {
     let Some(children) = circle.iter().next() else {
@@ -96,10 +96,12 @@ fn set_circle_visibility(
         return;
     }
 
-    let visible = match game_data.shots > 0 && drag_info.is_none() && **game_state.get() {
-        true => Visibility::Visible,
-        false => Visibility::Hidden,
-    };
+    let visible =
+        match game_data.shots > 0 && drag_info.is_none() && game_state.get() == &GameState::Playing
+        {
+            true => Visibility::Visible,
+            false => Visibility::Hidden,
+        };
 
     for child in children.iter() {
         if let Ok(mut visibility) = visibilities.get_mut(*child) {

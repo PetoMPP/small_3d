@@ -1,4 +1,4 @@
-use crate::{game::game_plugin::GameRunningState, AppState};
+use crate::{game::game_plugin::GameState, AppState};
 use bevy::prelude::*;
 use bevy_egui::{
     egui::{self, Color32, Frame, Margin, Vec2},
@@ -32,10 +32,10 @@ fn ui_system(mut commands: Commands, mut egui_context: EguiContexts) {
                     );
                     if pause_button.clicked() {
                         commands.add(|world: &mut World| {
-                            let game_state = *world.resource::<State<GameRunningState>>().get();
+                            let game_state = *world.resource::<State<GameState>>().get();
                             world
-                                .resource_mut::<NextState<GameRunningState>>()
-                                .set(GameRunningState(!*game_state));
+                                .resource_mut::<NextState<GameState>>()
+                                .set(game_state.next());
                         })
                     }
                 },

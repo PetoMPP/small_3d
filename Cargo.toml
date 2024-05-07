@@ -21,6 +21,8 @@ bevy_rapier3d = "0.25"
 bevy_tweening = "0.10"
 bevy_vector_shapes = "0.7"
 rand = "0.8"
+strum = "0.26"
+strum_macros = "0.26"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo = "0.11"
