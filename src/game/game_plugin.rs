@@ -10,27 +10,12 @@ use bevy::ecs::schedule::ScheduleLabel;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_tweening::TweeningPlugin;
-use strum::VariantArray;
-use strum_macros::{EnumIter, VariantArray};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, States, Default, EnumIter, VariantArray)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, States, Default)]
 pub enum GameState {
     #[default]
     Playing,
     Paused,
-    //Finished,
-}
-
-impl GameState {
-    pub fn next(&self) -> Self {
-        *Self::VARIANTS
-            .iter()
-            .cycle()
-            .skip_while(|v| v != &self)
-            .skip(1)
-            .next()
-            .unwrap()
-    }
 }
 
 pub struct GamePlugin;
@@ -57,7 +42,8 @@ impl Plugin for GamePlugin {
                 CustomTweeningPlugin,
                 GameUiPlugin,
             ))
-            .add_systems(OnEnter(AppState::InGame), start_game);
+            .add_systems(OnEnter(AppState::InGame), start_game)
+            .add_systems(OnExit(AppState::InGame), cleanup_game);
     }
 }
 
@@ -113,5 +99,20 @@ fn start_game(
         .insert(GameUiCamera);
 
     // game scene
-    set_scene.send(SetGameLevel(GameLevel::Demo));
+    set_scene.send(SetGameLevel(Some(GameLevel::Demo)));
+}
+
+fn cleanup_game(
+    mut commands: Commands,
+    mut set_scene: EventWriter<SetGameLevel>,
+    mut rapier_config: ResMut<RapierConfiguration>,
+    camera_2d: Query<Entity, With<GameUiCamera>>,
+    camera_3d: Query<Entity, With<GameCamera>>,
+    light: Query<Entity, With<SpotLight>>,
+) {
+    *rapier_config = RapierConfiguration::default();
+    for entity in camera_2d.iter().chain(camera_3d.iter()).chain(light.iter()) {
+        commands.entity(entity).despawn_recursive();
+    }
+    set_scene.send(SetGameLevel(None));
 }

@@ -12,6 +12,7 @@ use crate::{
             player_plugin::spawn_player,
         },
     },
+    log,
     resources::{
         game_assets::{GameAnimationSource, GameAssets, GameLevel, GameScene},
         random::Random,
@@ -37,7 +38,7 @@ pub struct GameData {
 struct LevelChanged;
 
 #[derive(Event, Deref, DerefMut)]
-pub struct SetGameLevel(pub GameLevel);
+pub struct SetGameLevel(pub Option<GameLevel>);
 
 impl Plugin for GameScenePlugin {
     fn build(&self, app: &mut App) {
@@ -47,7 +48,6 @@ impl Plugin for GameScenePlugin {
             .add_systems(
                 Update,
                 (
-                    set_game_scene,
                     initialize_game_scene,
                     initialize_game_scene_components,
                     reward_points_on_collision,
@@ -58,12 +58,7 @@ impl Plugin for GameScenePlugin {
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::Playing)),
             )
-            .add_systems(
-                Update,
-                (reset_state, spawn_game_scene)
-                    .run_if(in_state(AppState::InGame))
-                    .run_if(in_state(GameState::Playing)),
-            )
+            .add_systems(Update, (reset_state, spawn_game_scene, set_game_scene))
             .add_systems(OnEnter(GameState::Paused), pause_animation_players)
             .add_systems(OnEnter(GameState::Playing), resume_animation_players);
     }
@@ -75,7 +70,10 @@ fn set_game_scene(
     mut level_changed: EventWriter<LevelChanged>,
 ) {
     for set_game_level in set_game_level.read() {
-        *game_data = set_game_level.0.into();
+        *game_data = set_game_level.0.map(Into::into).unwrap_or_default();
+        if set_game_level.0.is_none() {
+            log!("Game level is not set");
+        }
         level_changed.send(LevelChanged);
     }
 }
@@ -90,9 +88,7 @@ fn reload_scene(
     };
 
     if key_input.state.is_pressed() && key_input.key_code == KeyCode::KeyR {
-        if let Some(game_level) = game_data.level {
-            set_game_scene.send(SetGameLevel(game_level));
-        }
+        set_game_scene.send(SetGameLevel(game_data.level));
     }
 }
 
@@ -408,15 +404,12 @@ fn reload_on_bounds_collision(
     let Some(bounds_entity) = bounds.iter().next() else {
         return;
     };
-    let Some(game_level) = game_data.level else {
-        return;
-    };
 
     let entities = [player_entity, bounds_entity];
     for collision in ground_collisions.read() {
         if let CollisionEvent::Started(e1, e2, _) = collision {
             if entities.contains(e1) && entities.contains(e2) {
-                set_game_level.send(SetGameLevel(game_level));
+                set_game_level.send(SetGameLevel(game_data.level));
             }
         }
     }
@@ -434,9 +427,6 @@ fn reload_on_pass_through_goal(
     mut started: Local<Option<Entity>>,
 ) {
     let Some((player_entity, player_transform)) = player.iter().next() else {
-        return;
-    };
-    let Some(game_level) = game_data.level else {
         return;
     };
 
@@ -473,7 +463,7 @@ fn reload_on_pass_through_goal(
     let movement =
         (player_transform.translation.xy() - goal_transform.translation().xy()).normalize();
     if movement.x * goal.0.x >= 0.0 && movement.y * goal.0.y >= 0.0 {
-        set_game_level.send(SetGameLevel(game_level));
+        set_game_level.send(SetGameLevel(game_data.level));
     }
     *started = None;
 }
