@@ -5,6 +5,7 @@ use crate::{
     AppState,
 };
 use bevy::prelude::*;
+use bevy_vector_shapes::shapes::RectPainter;
 
 pub struct GameUiPlugin;
 
@@ -120,6 +121,24 @@ fn spawn_pause_button(mut commands: Commands, window: &Window) {
     // Spawn pause button
     let a = window.height().min(window.width()) / 5.0;
     let offset = a / 10.0;
+    let pause_inner = (
+        styles::container_node(Val::Px(a), Val::Px(a)),
+        UiNode {
+            paint: Box::new(|painter, size, int| {
+                painter.color = Color::WHITE
+                    * match int {
+                        Interaction::Hovered => 1.35,
+                        Interaction::Pressed => 0.7,
+                        _ => 1.0,
+                    };
+                painter.translate(Vec3::new(size.x * -0.15, 0.0, 0.0));
+                painter.rect(Vec2::new(size.x * 0.1, size.y * 0.65));
+                painter.translate(Vec3::new(size.x * 0.3, 0.0, 0.0));
+                painter.rect(Vec2::new(size.x * 0.1, size.y * 0.65));
+            }),
+        },
+    );
+
     let pause_button = (
         styles::container_node(Val::Px(a), Val::Px(a)),
         UiNode::container(UiStyle {
@@ -145,6 +164,8 @@ fn spawn_pause_button(mut commands: Commands, window: &Window) {
     commands
         .spawn((container, PlayingElement))
         .with_children(|parent| {
-            parent.spawn(pause_button);
+            parent.spawn(pause_button).with_children(|parent| {
+                parent.spawn(pause_inner);
+            });
         });
 }
