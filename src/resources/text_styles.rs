@@ -8,7 +8,6 @@ pub struct TextStyles {
     bold: Handle<Font>,
     italic: Handle<Font>,
     italic_bold: Handle<Font>,
-    size_multiplier: f32,
 }
 
 impl TextStyles {
@@ -22,7 +21,7 @@ impl TextStyles {
 
         TextStyle {
             font,
-            font_size: self.size_multiplier * *font_size,
+            font_size: *font_size,
             color,
         }
     }
@@ -39,14 +38,12 @@ impl Loadable for TextStyles {
 
 impl FromWorld for TextStyles {
     fn from_world(world: &mut World) -> Self {
-        let window = world.query::<&Window>().single(world);
         let asset_server = world.resource::<AssetServer>();
         Self {
             regular: asset_server.load("fonts/OpenSans/OpenSans-Regular.ttf"),
             bold: asset_server.load("fonts/OpenSans/OpenSans-Bold.ttf"),
             italic: asset_server.load("fonts/OpenSans/OpenSans-Italic.ttf"),
             italic_bold: asset_server.load("fonts/OpenSans/OpenSans-BoldItalic.ttf"),
-            size_multiplier: 1.0 / window.scale_factor(),
         }
     }
 }

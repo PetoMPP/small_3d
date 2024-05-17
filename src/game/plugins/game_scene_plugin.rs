@@ -27,7 +27,8 @@ use std::time::Duration;
 
 pub struct GameScenePlugin;
 
-#[derive(Resource, Default, Clone)]
+#[derive(Resource, Default, Clone, Reflect)]
+#[reflect(Resource)]
 pub struct GameData {
     pub level: Option<GameLevel>,
     pub shots: u32,
@@ -43,6 +44,7 @@ pub struct SetGameLevel(pub Option<GameLevel>);
 impl Plugin for GameScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameData>()
+            .register_type::<GameData>()
             .add_event::<SetGameLevel>()
             .add_event::<LevelChanged>()
             .add_systems(

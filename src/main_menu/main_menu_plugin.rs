@@ -70,7 +70,8 @@ fn init_main_menu(mut commands: Commands, text_styles: Res<TextStyles>) {
                     text: Text::from_section(
                         LOADING_TEXT,
                         text_styles.get(FontType::Bold, FontSize::Large, Color::WHITE),
-                    ),
+                    )
+                    .with_justify(JustifyText::Center),
                     ..Default::default()
                 },
                 MenuText,
