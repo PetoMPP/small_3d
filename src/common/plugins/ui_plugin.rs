@@ -1,7 +1,7 @@
 use bevy::{prelude::*, utils::HashSet};
 use bevy_vector_shapes::{
     painter::{ShapeConfig, ShapePainter},
-    shapes::RectPainter,
+    shapes::{RectPainter, ThicknessType},
 };
 
 #[derive(Component)]
@@ -48,7 +48,9 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (handle_on_click, render_bg));
+        app
+        .register_type::<UiState>()
+        .add_systems(Update, (handle_on_click, render_bg));
     }
 }
 
@@ -70,8 +72,11 @@ fn handle_on_click(
 
 #[derive(Component)]
 pub struct UiNode {
-    pub paint: Box<dyn Fn(&mut ShapePainter, Vec2, &Interaction) + Send + Sync>,
+    pub paint: Box<dyn Fn(&mut ShapePainter, Vec2, &Interaction, u64) + Send + Sync>,
 }
+
+#[derive(Component, Deref, DerefMut, Clone, Copy, Default, Reflect)]
+pub struct UiState(pub u64);
 
 #[derive(Debug, Clone, Copy)]
 pub struct UiStyle {
@@ -95,34 +100,52 @@ impl Default for UiStyle {
 impl UiNode {
     pub fn container(style: UiStyle) -> Self {
         UiNode {
-            paint: Box::new(move |painter, size, interaction| {
+            paint: Box::new(move |painter, size, interaction, _state| {
                 let color_mult = match interaction {
                     Interaction::Hovered => 1.35,
                     Interaction::Pressed => 0.7,
                     _ => 1.0,
                 };
+                painter.alpha_mode = AlphaMode::Blend;
+                painter.color = style.color * color_mult;
+                if style.border_width < 1.0 {
+                    painter.corner_radii = Vec4::splat(style.border_radius);
+                    painter.rect(size);
+                    return;
+                }
+                let inner_size = size - Vec2::splat(1.0);
+                let ratio = inner_size / size;
+                painter.corner_radii =
+                    Vec4::splat(style.border_radius) * ratio.extend(ratio.x).extend(ratio.y);
+                painter.rect(size * ratio);
                 painter.color = style.border_color.unwrap_or(Color::BLACK) * color_mult;
                 painter.corner_radii = Vec4::splat(style.border_radius);
+                painter.hollow = true;
+                painter.thickness_type = ThicknessType::Pixels;
+                painter.thickness = style.border_width;
                 painter.rect(size);
-                let inner_size = size - Vec2::splat(style.border_width * 2.0);
-                let ratio = inner_size / size;
-                painter.color = style.color * color_mult;
-                painter.corner_radii = painter.corner_radii * ratio.extend(ratio.x).extend(ratio.y);
-                painter.rect(size * ratio);
             }),
         }
     }
 }
 
 fn render_bg(
-    nodes: Query<(&UiNode, &Node, &GlobalTransform, Option<&Interaction>)>,
+    nodes: Query<(
+        &UiNode,
+        &Node,
+        &GlobalTransform,
+        Option<&Interaction>,
+        Option<&UiState>,
+        Option<&Parent>,
+    )>,
+    ui_states: Query<&UiState>,
     window: Query<&Window>,
     mut painter: ShapePainter,
 ) {
     let window = window.single();
     let mut nodes = nodes.iter().collect::<Vec<_>>();
     nodes.reverse();
-    for (ui_node, node, gt, int) in nodes {
+    for (ui_node, node, gt, int, state, parent) in nodes {
         let rect = &node.logical_rect(gt);
         let mut pos_2d = rect.center();
         pos_2d.x -= window.width() / 2.0;
@@ -132,6 +155,15 @@ fn render_bg(
             ..ShapeConfig::default_2d()
         };
         painter.set_config(config);
-        (ui_node.paint)(&mut painter, rect.size(), int.unwrap_or(&Interaction::None));
+        (ui_node.paint)(
+            &mut painter,
+            rect.size(),
+            int.unwrap_or(&Interaction::None),
+            state.map(|s| s.0).unwrap_or_else(|| {
+                parent
+                    .and_then(|p| ui_states.get(**p).ok().map(|s| s.0))
+                    .unwrap_or_default()
+            }),
+        );
     }
 }

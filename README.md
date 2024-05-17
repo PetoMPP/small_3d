@@ -15,7 +15,7 @@ Check it out on https://petompp.github.io/small_3d/ (Best played on mobile)
     - [x] Pass-through goal gates
     - [x] Moving obstacles
     - [ ] Collectibles
-        - [ ] Points
+        - [x] Points
         - [ ] Power ups
     - [ ] Hurting obstacles
     - [ ] Backgrounds
@@ -36,12 +36,12 @@ Check it out on https://petompp.github.io/small_3d/ (Best played on mobile)
           - [ ] Account settings?
       - [ ] Game
           - [ ] Shoots tracker
-          - [ ] Points tracker
-          - [ ] Stars/note progress tracker
-          - [ ] Pause menu
-              - [ ] Reset level
-              - [ ] Resume
-              - [ ] Back to menu
+          - [x] Points tracker
+          - [x] Stars/note progress tracker
+          - [x] Pause menu
+              - [x] Reset level
+              - [x] Resume
+              - [x] Back to menu
 - [ ] Sounds
     - [ ] Background music
     - [ ] Collision sounds

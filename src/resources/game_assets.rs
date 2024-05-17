@@ -24,14 +24,14 @@ pub enum GameMaterial {
     AimArrowBorder,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 pub enum GameLevel {
     Demo,
 }
 
 pub struct GameLevelMeta {
     pub shots: u32,
-    pub star_point_thresholds: [u32; 2],
+    pub star_point_thresholds: [u32; 3],
 }
 
 impl Into<GameData> for GameLevel {
@@ -56,7 +56,7 @@ impl GameLevel {
         match self {
             Self::Demo => GameLevelMeta {
                 shots: 3,
-                star_point_thresholds: [50, 75],
+                star_point_thresholds: [25, 50, 75],
             },
         }
     }
