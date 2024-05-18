@@ -1,25 +1,40 @@
-use bevy::{prelude::*, utils::HashSet};
+use super::user_input_plugin::{UserInput, UserInputPosition};
+use crate::resources::inputs::Inputs;
+use bevy::{prelude::*, ui::ui_focus_system, utils::HashSet};
 use bevy_vector_shapes::{
     painter::{ShapeConfig, ShapePainter},
     shapes::{RectPainter, ThicknessType},
 };
 
 #[derive(Component)]
-pub struct UiOnClick(pub fn(&mut World) -> ());
+pub struct UiOnClick {
+    pub on_click: fn(&mut World) -> (),
+    // if false, the click will not be handled once
+    handle: bool,
+}
 
-#[derive(Bundle)]
+impl UiOnClick {
+    pub fn new(on_click: fn(&mut World) -> ()) -> Self {
+        Self {
+            on_click,
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for UiOnClick {
+    fn default() -> Self {
+        Self {
+            on_click: |_| {},
+            handle: true,
+        }
+    }
+}
+
+#[derive(Bundle, Default)]
 pub struct UiOnClickBundle {
     pub ui_on_click: UiOnClick,
     pub interaction: Interaction,
-}
-
-impl Default for UiOnClickBundle {
-    fn default() -> Self {
-        UiOnClickBundle {
-            ui_on_click: UiOnClick(|_| {}),
-            interaction: Interaction::default(),
-        }
-    }
 }
 
 pub mod styles {
@@ -48,24 +63,64 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app
-        .register_type::<UiState>()
-        .add_systems(Update, (handle_on_click, render_bg));
+        app.register_type::<UiState>().add_systems(
+            Update,
+            (
+                handle_on_click,
+                render_bg,
+                override_interactions.after(ui_focus_system),
+            ),
+        );
+    }
+}
+
+fn override_interactions(
+    mut interactions: Query<(
+        &mut Interaction,
+        &mut UiOnClick,
+        &UiNode,
+        &Node,
+        &GlobalTransform,
+    )>,
+    user_input: Res<Inputs<UserInput>>,
+    user_input_positions: Res<UserInputPosition>,
+) {
+    let Some(pos) = user_input
+        .iter_pressed()
+        .next()
+        .and_then(|u| user_input_positions.get(u.0))
+        .or(user_input_positions.get(0))
+    else {
+        return;
+    };
+    for (mut interaction, mut on_click, ui_node, node, trans) in interactions
+        .iter_mut()
+        .filter(|i| *i.0 != Interaction::None)
+    {
+        let rect = node.logical_rect(trans);
+        if !crate::utils::contains_point(rect, ui_node.corner_radius, pos) {
+            *interaction = Interaction::None;
+            on_click.handle = false;
+        }
     }
 }
 
 fn handle_on_click(
     mut commands: Commands,
-    query: Query<(Entity, &UiOnClick, &Interaction), Changed<Interaction>>,
+    mut query: Query<(Entity, &mut UiOnClick, &Interaction), Changed<Interaction>>,
     mut presses: Local<HashSet<Entity>>,
 ) {
-    for (entity, ui_on_click, interaction) in query.iter() {
+    for (entity, mut ui_on_click, interaction) in query.iter_mut() {
         if interaction == &Interaction::Pressed {
             presses.insert(entity);
         }
         if interaction != &Interaction::Pressed && presses.contains(&entity) {
             presses.remove(&entity);
-            commands.add(ui_on_click.0);
+            if !ui_on_click.handle {
+                ui_on_click.handle = true;
+                continue;
+            }
+            commands.add(ui_on_click.on_click);
         }
     }
 }
@@ -73,6 +128,16 @@ fn handle_on_click(
 #[derive(Component)]
 pub struct UiNode {
     pub paint: Box<dyn Fn(&mut ShapePainter, Vec2, &Interaction, u64) + Send + Sync>,
+    pub corner_radius: f32,
+}
+
+impl Default for UiNode {
+    fn default() -> Self {
+        Self {
+            paint: Box::new(|_, _, _, _| {}),
+            corner_radius: 0.0,
+        }
+    }
 }
 
 #[derive(Component, Deref, DerefMut, Clone, Copy, Default, Reflect)]
@@ -125,6 +190,7 @@ impl UiNode {
                 painter.thickness = style.border_width;
                 painter.rect(size);
             }),
+            corner_radius: style.border_radius,
         }
     }
 }

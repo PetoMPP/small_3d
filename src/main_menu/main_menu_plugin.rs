@@ -60,7 +60,7 @@ fn init_main_menu(mut commands: Commands, text_styles: Res<TextStyles>) {
             },
             MenuNode,
             UiOnClickBundle {
-                ui_on_click: UiOnClick(set_in_game),
+                ui_on_click: UiOnClick::new(set_in_game),
                 ..Default::default()
             },
         ))

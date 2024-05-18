@@ -11,6 +11,7 @@ mod common;
 mod game;
 mod main_menu;
 mod resources;
+mod utils;
 
 #[macro_export]
 macro_rules! log {

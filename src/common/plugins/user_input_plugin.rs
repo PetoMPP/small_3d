@@ -96,6 +96,13 @@ fn handle_input_state_mouse(
     input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
 ) {
+    user_input_position.set(
+        0,
+        windows
+            .iter()
+            .next()
+            .and_then(|window| window.cursor_position()),
+    );
     if input.just_released(MouseButton::Left) {
         user_input.release(UserInput(0));
         user_input_position.set(0, None);
@@ -104,14 +111,5 @@ fn handle_input_state_mouse(
 
     if input.just_pressed(MouseButton::Left) {
         user_input.press(UserInput(0));
-    }
-    if input.pressed(MouseButton::Left) {
-        user_input_position.set(
-            0,
-            windows
-                .iter()
-                .next()
-                .and_then(|window| window.cursor_position()),
-        );
     }
 }
