@@ -55,7 +55,7 @@ trait GameUiOnClick {
 
 impl GameUiOnClick for UiOnClick {
     fn pause_game() -> Self {
-        Self(|world| {
+        Self::new(|world| {
             world
                 .resource_mut::<NextState<GameState>>()
                 .set(GameState::Paused);
@@ -63,14 +63,14 @@ impl GameUiOnClick for UiOnClick {
     }
 
     fn resume_game() -> Self {
-        Self(|w: &mut World| {
+        Self::new(|w: &mut World| {
             w.resource_mut::<NextState<GameState>>()
                 .set(GameState::Playing)
         })
     }
 
     fn restart_game() -> Self {
-        Self(|w: &mut World| {
+        Self::new(|w: &mut World| {
             w.resource_mut::<NextState<GameState>>()
                 .set(GameState::Playing);
             w.send_event(SetGameLevel(w.resource::<GameData>().level));
@@ -78,7 +78,7 @@ impl GameUiOnClick for UiOnClick {
     }
 
     fn back_to_main_menu() -> Self {
-        Self(|w: &mut World| {
+        Self::new(|w: &mut World| {
             w.resource_mut::<NextState<AppState>>()
                 .set(AppState::MainMenu)
         })
@@ -255,6 +255,7 @@ fn spawn_score_tracker(commands: &mut Commands, window: &Window, text_styles: &T
                 painter.color = color;
                 painter.rect(size * 0.65);
             }),
+            ..Default::default()
         },
     );
     let progress_star_double = (
@@ -276,6 +277,7 @@ fn spawn_score_tracker(commands: &mut Commands, window: &Window, text_styles: &T
                 painter.color = color;
                 painter.rect(size * 0.65);
             }),
+            ..Default::default()
         },
     );
     let progress_star_triple = (
@@ -302,6 +304,7 @@ fn spawn_score_tracker(commands: &mut Commands, window: &Window, text_styles: &T
                 painter.color = color;
                 painter.rect(size * 0.65);
             }),
+            ..Default::default()
         },
     );
 
@@ -324,6 +327,7 @@ fn spawn_score_tracker(commands: &mut Commands, window: &Window, text_styles: &T
                 painter.color = Color::YELLOW;
                 painter.rect(Vec2::new(size.x, size.y));
             }),
+            ..Default::default()
         },
         ProgressTracker,
     );
@@ -382,6 +386,7 @@ fn spawn_pause_button(commands: &mut Commands, window: &Window) {
                 painter.translate(Vec3::new(size.x * 0.3, 0.0, 0.0));
                 painter.rect(Vec2::new(size.x * 0.1, size.y * 0.65));
             }),
+            ..Default::default()
         },
     );
 
