@@ -6,7 +6,7 @@ use super::{
 use crate::{
     common::plugins::user_input_plugin::{UserInput, UserInputPosition},
     game::{
-        components::{GameCamera, GameEntity, GameUiCamera},
+        components::{GameCamera, GameEntity},
         game_plugin::GameState,
     },
     log,
@@ -19,11 +19,7 @@ use crate::{
 use bevy::{prelude::*, scene::SceneInstance};
 use bevy_rapier3d::prelude::*;
 use bevy_tweening::{Animator, EaseFunction, RepeatCount, RepeatStrategy, Tween};
-use bevy_vector_shapes::{
-    painter::{BuildShapeChildren, ShapeConfig},
-    shapes::{DiscSpawner, ThicknessType},
-};
-use std::{f32::consts::PI, time::Duration};
+use std::time::Duration;
 
 pub struct AimingPlugin;
 
@@ -33,17 +29,13 @@ impl Plugin for AimingPlugin {
             .add_systems(
                 Update,
                 (
-                    (
-                        start_player_aim,
-                        cancel_player_aim,
-                        aim_player,
-                        fire_player,
-                        initialize_arrow_components,
-                        update_arrow,
-                    )
-                        .run_if(in_state(GameState::Playing)),
-                    set_circle_visibility,
+                    cancel_player_aim,
+                    aim_player,
+                    fire_player,
+                    initialize_arrow_components,
+                    update_arrow,
                 )
+                    .run_if(in_state(GameState::Playing))
                     .run_if(in_state(AppState::InGame)),
             )
             .add_systems(
@@ -54,61 +46,6 @@ impl Plugin for AimingPlugin {
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::Playing)),
             );
-    }
-}
-
-#[derive(Component)]
-pub struct AimCircle(f32);
-
-pub fn spawn_circle(commands: &mut Commands, window: &Window) {
-    let mut shapes_config = ShapeConfig::default_2d();
-    shapes_config.color = Color::WHITE.with_a(0.9);
-    shapes_config.hollow = true;
-    shapes_config.thickness = 0.8;
-    shapes_config.thickness_type = ThicknessType::Screen;
-    let radius = window.height().min(window.width()) / 3.5 / 2.0;
-
-    commands
-        .spawn((AimCircle(radius), GameEntity))
-        .with_shape_children(&shapes_config, |builder| {
-            const STEPS: usize = 16;
-            for i in 1..=STEPS {
-                const STEP: f32 = 1.0 / STEPS as f32 * 2.0 * PI;
-                const OFFSET: f32 = 0.3 * STEP;
-                let angle = i as f32 * STEP + OFFSET;
-                builder.arc(radius, angle, angle + STEP / 2.7);
-            }
-        });
-}
-
-fn set_circle_visibility(
-    game_data: Res<GameData>,
-    circle: Query<&Children, With<AimCircle>>,
-    drag_info: Res<DragInfo>,
-    game_state: Res<State<GameState>>,
-    mut visibilities: Query<&mut Visibility>,
-) {
-    let Some(children) = circle.iter().next() else {
-        return;
-    };
-
-    if !game_data.is_changed() && !drag_info.is_changed() && !game_state.is_changed() {
-        return;
-    }
-
-    let visible =
-        match game_data.shots > 0 && drag_info.is_none() && game_state.get() == &GameState::Playing
-        {
-            true => Visibility::Visible,
-            false => Visibility::Hidden,
-        };
-
-    for child in children.iter() {
-        if let Ok(mut visibility) = visibilities.get_mut(*child) {
-            if *visibility != visible {
-                *visibility = visible;
-            }
-        }
     }
 }
 
@@ -318,48 +255,21 @@ fn get_power_color(power: f32) -> Color {
 #[derive(Resource, Default, Deref, DerefMut, Clone, Copy)]
 pub struct DragInfo(Option<DragInfoData>);
 
+impl DragInfo {
+    pub fn start(&mut self, point: Vec2, user_input: UserInput) {
+        **self = Some(DragInfoData {
+            point,
+            user_input,
+            confirmed: false,
+        });
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct DragInfoData {
     point: Vec2,
     user_input: UserInput,
     confirmed: bool,
-}
-
-fn start_player_aim(
-    aim_circle: Query<&AimCircle>,
-    user_input: Res<Inputs<UserInput>>,
-    user_input_position: Res<UserInputPosition>,
-    ui_camera: Query<(&Camera, &GlobalTransform), With<GameUiCamera>>,
-    mut drag_info: ResMut<DragInfo>,
-    game_data: ResMut<GameData>,
-) {
-    if game_data.shots == 0 {
-        return;
-    }
-    let Some(circle) = aim_circle.iter().next() else {
-        return;
-    };
-    let Some((camera, camera_transform)) = ui_camera.iter().next() else {
-        return;
-    };
-
-    for user_input in user_input.iter_just_pressed() {
-        let Some(position) = user_input_position.get(**user_input) else {
-            log!("no input position");
-            break;
-        };
-        let Some(world_pos) = camera.viewport_to_world_2d(camera_transform, position) else {
-            log!("no world position");
-            break;
-        };
-        if world_pos.distance_squared(Vec2::ZERO) <= circle.0.powi(2) {
-            **drag_info = Some(DragInfoData {
-                point: position,
-                user_input: *user_input,
-                confirmed: false,
-            });
-        }
-    }
 }
 
 fn cancel_player_aim(mut drag_info: ResMut<DragInfo>, user_input: Res<Inputs<UserInput>>) {

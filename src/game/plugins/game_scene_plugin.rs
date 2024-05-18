@@ -1,5 +1,5 @@
 use super::{
-    aiming_plugin::{spawn_circle, DragInfo},
+    aiming_plugin::DragInfo,
     custom_tweening_plugin::GameTween,
     player_plugin::{Player, PLAYER_RADIUS},
 };
@@ -228,7 +228,6 @@ impl TryFrom<&Name> for GameLevelObjectType {
 #[allow(clippy::too_many_arguments)]
 fn initialize_game_scene(
     mut commands: Commands,
-    window: Query<&Window>,
     entities: Query<(Entity, &Name, Option<&Children>), Added<Name>>,
     meshes: Res<Assets<Mesh>>,
     mesh_entities: Query<&Handle<Mesh>>,
@@ -237,9 +236,6 @@ fn initialize_game_scene(
     game_assets: Res<GameAssets>,
     mut rng: NonSendMut<Random>,
 ) {
-    let Some(window) = window.iter().next() else {
-        return;
-    };
     for (entity, name, children) in entities.iter() {
         let Ok(object_type) = GameLevelObjectType::try_from(name) else {
             continue;
@@ -277,7 +273,6 @@ fn initialize_game_scene(
                     &game_assets,
                     transform.translation + Vec3::Z * PLAYER_RADIUS,
                 );
-                spawn_circle(&mut commands, window);
             }
             GameLevelObjectType::Goal(dir) => {
                 if let Some(children) = children {

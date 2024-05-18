@@ -1,6 +1,6 @@
 use super::user_input_plugin::{UserInput, UserInputPosition};
 use crate::resources::inputs::Inputs;
-use bevy::{prelude::*, ui::ui_focus_system, utils::HashSet};
+use bevy::{ecs::system::Command, prelude::*, ui::ui_focus_system, utils::HashSet};
 use bevy_vector_shapes::{
     painter::{ShapeConfig, ShapePainter},
     shapes::{RectPainter, ThicknessType},
@@ -8,15 +8,17 @@ use bevy_vector_shapes::{
 
 #[derive(Component)]
 pub struct UiOnClick {
-    pub on_click: fn(&mut World) -> (),
+    pub command: UiCommand,
+    // if true, the click will be handled on press
+    pub eager_handle: bool,
     // if false, the click will not be handled once
     handle: bool,
 }
 
 impl UiOnClick {
-    pub fn new(on_click: fn(&mut World) -> ()) -> Self {
+    pub fn new(on_click: fn(&mut World, Option<(&UserInput, Vec2)>) -> ()) -> Self {
         Self {
-            on_click,
+            command: UiCommand::new(on_click),
             ..Default::default()
         }
     }
@@ -25,9 +27,47 @@ impl UiOnClick {
 impl Default for UiOnClick {
     fn default() -> Self {
         Self {
-            on_click: |_| {},
+            command: UiCommand::default(),
+            eager_handle: false,
             handle: true,
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct UiCommand {
+    command: fn(&mut World, Option<(&UserInput, Vec2)>) -> (),
+    user_input: Option<UserInput>,
+    pos: Option<Vec2>,
+}
+
+impl UiCommand {
+    pub fn new(command: fn(&mut World, Option<(&UserInput, Vec2)>) -> ()) -> Self {
+        Self {
+            command,
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for UiCommand {
+    fn default() -> Self {
+        Self {
+            command: |_, _| {},
+            user_input: None,
+            pos: None,
+        }
+    }
+}
+
+impl Command for UiCommand {
+    fn apply(self, world: &mut World) {
+        (self.command)(
+            world,
+            self.user_input
+                .as_ref()
+                .and_then(|u| self.pos.map(|p| (u, p))),
+        );
     }
 }
 
@@ -85,11 +125,11 @@ fn override_interactions(
     user_input: Res<Inputs<UserInput>>,
     user_input_positions: Res<UserInputPosition>,
 ) {
-    let Some(pos) = user_input
+    let Some((pos, user_input)) = user_input
         .iter_pressed()
         .next()
-        .and_then(|u| user_input_positions.get(u.0))
-        .or(user_input_positions.get(0))
+        .and_then(|u| user_input_positions.get(u.0).map(|p| (p, **u)))
+        .or(user_input_positions.get(0).map(|p| (p, 0)))
     else {
         return;
     };
@@ -102,6 +142,8 @@ fn override_interactions(
             *interaction = Interaction::None;
             on_click.handle = false;
         }
+        on_click.command.user_input = Some(UserInput(user_input));
+        on_click.command.pos = Some(pos);
     }
 }
 
@@ -112,6 +154,10 @@ fn handle_on_click(
 ) {
     for (entity, mut ui_on_click, interaction) in query.iter_mut() {
         if interaction == &Interaction::Pressed {
+            if ui_on_click.eager_handle {
+                commands.add(ui_on_click.command);
+                continue;
+            }
             presses.insert(entity);
         }
         if interaction != &Interaction::Pressed && presses.contains(&entity) {
@@ -120,7 +166,7 @@ fn handle_on_click(
                 ui_on_click.handle = true;
                 continue;
             }
-            commands.add(ui_on_click.on_click);
+            commands.add(ui_on_click.command);
         }
     }
 }

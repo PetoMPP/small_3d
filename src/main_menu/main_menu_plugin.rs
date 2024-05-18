@@ -1,4 +1,5 @@
 use crate::common::plugins::ui_plugin::{styles, UiOnClick, UiOnClickBundle};
+use crate::common::plugins::user_input_plugin::UserInput;
 use crate::game::game_plugin::GameState;
 use crate::resources::game_assets::GameAssets;
 use crate::resources::loadable::Loadable;
@@ -79,7 +80,7 @@ fn init_main_menu(mut commands: Commands, text_styles: Res<TextStyles>) {
         });
 }
 
-fn set_in_game(world: &mut World) {
+fn set_in_game(world: &mut World, _user_input: Option<(&UserInput, Vec2)>) {
     let asset_server = world.get_resource::<AssetServer>().unwrap();
     let game_assets = world.get_resource::<GameAssets>().unwrap();
     let text_styles = world.get_resource::<TextStyles>().unwrap();
