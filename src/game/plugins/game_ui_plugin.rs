@@ -5,7 +5,11 @@ use super::{
 use crate::{
     common::plugins::ui_plugin::{styles, UiNode, UiOnClick, UiOnClickBundle, UiState, UiStyle},
     game::game_plugin::GameState,
-    resources::text_styles::{FontSize, FontType, TextStyles},
+    resources::{
+        game_assets::{GameAssets, GameImage},
+        text_styles::{FontSize, FontType, TextStyles},
+    },
+    utils::rotate_point,
     AppState,
 };
 use bevy::prelude::*;
@@ -22,7 +26,7 @@ impl Plugin for GameUiPlugin {
                     switch_ui.run_if(state_changed::<GameState>),
                     (
                         update_score_tracker.run_if(resource_changed::<GameData>),
-                        set_aim_circle_visibility,
+                        set_aim_circle_visibility.run_if(in_state(GameState::Playing)),
                     )
                         .after(switch_ui),
                 )
@@ -35,6 +39,7 @@ fn switch_ui(
     mut commands: Commands,
     window: Query<&Window>,
     text_styles: Res<TextStyles>,
+    game_assets: Res<GameAssets>,
     game_state: Res<State<GameState>>,
     playing: Query<Entity, With<PlayingElement>>,
     paused: Query<Entity, With<PausedElement>>,
@@ -46,7 +51,7 @@ fn switch_ui(
     let window = window.single();
     match **game_state {
         GameState::Paused => spawn_pause_menu(&mut commands, window, &text_styles),
-        GameState::Playing => spawn_game_menu(&mut commands, window, &text_styles),
+        GameState::Playing => spawn_game_menu(&mut commands, window, &text_styles, &game_assets),
     }
 }
 
@@ -171,22 +176,57 @@ struct PausedElement;
 #[derive(Component)]
 struct PlayingElement;
 
-fn spawn_game_menu(commands: &mut Commands, window: &Window, text_styles: &TextStyles) {
-    spawn_aim_circle(commands, window);
+fn spawn_game_menu(
+    commands: &mut Commands,
+    window: &Window,
+    text_styles: &TextStyles,
+    game_assets: &GameAssets,
+) {
+    spawn_aim_circle(commands, window, game_assets);
     spawn_pause_button(commands, window);
-    spawn_score_tracker(commands, window, text_styles);
+    spawn_score_tracker(commands, window, text_styles, game_assets);
 }
 
 #[derive(Component)]
 pub struct AimCircle;
 
-pub fn spawn_aim_circle(commands: &mut Commands, window: &Window) {
-    let radius = window.height().min(window.width()) / 7.0;
+#[derive(Component)]
+pub struct ShotsTracker;
+
+pub fn spawn_aim_circle(commands: &mut Commands, window: &Window, game_assets: &GameAssets) {
+    let radius = window.height().min(window.width()) / 4.0;
+    let inner_radius = radius * 0.6;
     let mut container = styles::container_node(Val::Percent(100.0), Val::Percent(100.0));
     container.style.position_type = PositionType::Absolute;
+    let texture = game_assets.get_image(GameImage::Player);
+
+    let shots = (
+        styles::container_node(Val::Px(radius * 2.0), Val::Px(radius * 2.0)),
+        UiNode {
+            paint: Box::new(move |painter, size, _, state| {
+                let radius = (radius - inner_radius) / 2.0;
+                let paint_radius = radius * 0.8;
+                painter.color = Color::WHITE;
+                painter.texture = Some(texture.clone());
+                let start = Vec2::new(0.0, size.y / 2.0 - radius);
+                const STEPS: usize = 12;
+                for i in 0..state as usize {
+                    const STEP: f32 = 1.0 / STEPS as f32 * 2.0 * std::f32::consts::PI;
+                    const OFFSET: f32 = 1.2 * STEP;
+                    let angle = i as f32 * STEP + OFFSET;
+                    let point = rotate_point(start, Vec2::ZERO, -angle);
+                    painter.transform.translation = point.extend(0.0);
+                    painter.circle(paint_radius);
+                }
+            }),
+            ..Default::default()
+        },
+        UiState(0),
+        ShotsTracker,
+    );
 
     let circle = (
-        styles::container_node(Val::Px(radius * 2.0), Val::Px(radius * 2.0)),
+        styles::container_node(Val::Px(inner_radius * 2.0), Val::Px(inner_radius * 2.0)),
         AimCircle,
         UiOnClickBundle {
             ui_on_click: UiOnClick::start_aim(),
@@ -214,7 +254,9 @@ pub fn spawn_aim_circle(commands: &mut Commands, window: &Window) {
     commands
         .spawn((container, PlayingElement))
         .with_children(|parent| {
-            parent.spawn(circle);
+            parent.spawn(shots).with_children(|parent| {
+                parent.spawn(circle);
+            });
         });
 }
 
@@ -249,6 +291,7 @@ fn update_score_tracker(
     mut score: Query<&mut Text, With<ScoreTracker>>,
     mut progress: Query<&mut Style, With<ProgressTracker>>,
     mut progress_state: Query<&mut UiState, With<ProgressStars>>,
+    mut shots_state: Query<&mut UiState, (With<ShotsTracker>, Without<ProgressStars>)>,
     game_data: Res<GameData>,
 ) {
     score.single_mut().sections[0].value = game_data.points.to_string();
@@ -287,9 +330,16 @@ fn update_score_tracker(
             progress_state.0 = 3;
         }
     }
+
+    shots_state.single_mut().0 = game_data.shots as u64;
 }
 
-fn spawn_score_tracker(commands: &mut Commands, window: &Window, text_styles: &TextStyles) {
+fn spawn_score_tracker(
+    commands: &mut Commands,
+    window: &Window,
+    text_styles: &TextStyles,
+    game_assets: &GameAssets,
+) {
     let a = window.height().min(window.width()) / 6.0;
     let offset = a / 10.0;
     let mut score_text = (
@@ -322,67 +372,62 @@ fn spawn_score_tracker(commands: &mut Commands, window: &Window, text_styles: &T
     );
     progress_stars.0.style.justify_content = JustifyContent::SpaceBetween;
     progress_stars.0.style.align_self = AlignSelf::End;
+    let star = game_assets.get_image(GameImage::Star);
     let progress_star_single = (
         styles::container_node(Val::Px(a / 3.0), Val::Px(a / 3.0)),
-        UiNode {
-            paint: Box::new(|painter, size, _, state| {
-                let color = match state > 0 {
-                    true => Color::YELLOW,
-                    false => Color::GRAY,
-                };
-                painter.color = Color::BLACK;
-                painter.rect(size * 0.7);
-                painter.color = color;
-                painter.rect(size * 0.65);
-            }),
-            ..Default::default()
+        {
+            let star = star.clone();
+            UiNode {
+                paint: Box::new(move |painter, size, _, state| {
+                    painter.translate(Vec3::Z);
+                    painter.color = match state > 0 {
+                        true => Color::WHITE,
+                        false => Color::GRAY,
+                    };
+                    painter.texture = Some(star.clone());
+                    painter.rect(size);
+                }),
+                ..Default::default()
+            }
         },
     );
     let progress_star_double = (
         styles::container_node(Val::Px(a / 3.0), Val::Px(a / 3.0)),
-        UiNode {
-            paint: Box::new(|painter, size, _, state| {
-                let color = match state > 1 {
-                    true => Color::YELLOW,
-                    false => Color::GRAY,
-                };
-                painter.translate(Vec3::new(size.x * -0.15, size.y * -0.05, 0.0));
-                painter.color = Color::BLACK;
-                painter.rect(size * 0.7);
-                painter.color = color;
-                painter.rect(size * 0.65);
-                painter.translate(Vec3::new(size.x * 0.15, size.y * 0.1, 0.0));
-                painter.color = Color::BLACK;
-                painter.rect(size * 0.7);
-                painter.color = color;
-                painter.rect(size * 0.65);
-            }),
-            ..Default::default()
+        {
+            let star = star.clone();
+            UiNode {
+                paint: Box::new(move |painter, size, _, state| {
+                    painter.translate(Vec3::Z);
+                    painter.color = match state > 1 {
+                        true => Color::WHITE,
+                        false => Color::GRAY,
+                    };
+                    painter.texture = Some(star.clone());
+                    painter.translate(Vec3::new(size.x * -0.15, size.y * -0.05, 0.0));
+                    painter.rect(size);
+                    painter.translate(Vec3::new(size.x * 0.15, size.y * 0.1, 0.0));
+                    painter.rect(size);
+                }),
+                ..Default::default()
+            }
         },
     );
     let progress_star_triple = (
         styles::container_node(Val::Px(a / 3.0), Val::Px(a / 3.0)),
         UiNode {
-            paint: Box::new(|painter, size, _, state| {
-                let color = match state > 2 {
-                    true => Color::YELLOW,
+            paint: Box::new(move |painter, size, _, state| {
+                painter.color = match state > 2 {
+                    true => Color::WHITE,
                     false => Color::GRAY,
                 };
+                painter.texture = Some(star.clone());
+                painter.translate(Vec3::Z);
                 painter.translate(Vec3::new(size.x * -0.45 / 2.0, size.y * -0.1, 0.0));
-                painter.color = Color::BLACK;
-                painter.rect(size * 0.7);
-                painter.color = color;
-                painter.rect(size * 0.65);
+                painter.rect(size);
                 painter.translate(Vec3::new(size.x * 0.45 / 2.0, size.y * 0.1, 0.0));
-                painter.color = Color::BLACK;
-                painter.rect(size * 0.7);
-                painter.color = color;
-                painter.rect(size * 0.65);
+                painter.rect(size);
                 painter.translate(Vec3::new(size.x * 0.45 / 2.0, size.y * 0.1, 0.0));
-                painter.color = Color::BLACK;
-                painter.rect(size * 0.7);
-                painter.color = color;
-                painter.rect(size * 0.65);
+                painter.rect(size);
             }),
             ..Default::default()
         },

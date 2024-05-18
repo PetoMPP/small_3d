@@ -52,6 +52,12 @@ pub fn contains_point(rect: Rect, corner_radius: f32, point: Vec2) -> bool {
     false
 }
 
+pub fn rotate_point(point: Vec2, center: Vec2, angle: f32) -> Vec2 {
+    let offset = point - center;
+    let rot = Quat::from_rotation_z(angle);
+    center + rot.mul_vec3(offset.extend(0.0)).truncate()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

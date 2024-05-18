@@ -11,17 +11,23 @@ use bevy_rapier3d::{
     geometry::ColliderMassProperties,
 };
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 pub enum GameScene {
     Player,
     AimArrow,
     Level(GameLevel),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 pub enum GameMaterial {
     AimArrowBody,
     AimArrowBorder,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
+pub enum GameImage {
+    Player,
+    Star,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
@@ -66,11 +72,12 @@ pub trait GameAnimationSource {
     fn get_animation_filename(&self) -> &str;
 }
 
-#[derive(Resource, Clone)]
+#[derive(Resource, Clone, Reflect)]
 pub struct GameAssets {
     scenes: HashMap<GameScene, Handle<Scene>>,
     animations: HashMap<String, HashMap<Name, Handle<AnimationClip>>>,
     materials: HashMap<GameMaterial, Handle<StandardMaterial>>,
+    images: HashMap<GameImage, Handle<Image>>,
 }
 
 impl GameAssets {
@@ -107,6 +114,10 @@ impl GameAssets {
 
     pub fn get_material(&self, asset: GameMaterial) -> Handle<StandardMaterial> {
         self.materials[&asset].clone_weak()
+    }
+
+    pub fn get_image(&self, asset: GameImage) -> Handle<Image> {
+        self.images[&asset].clone_weak()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -201,6 +212,8 @@ impl IntoIterator for &GameAssets {
                     .values()
                     .flat_map(|v| v.values().map(Into::into)),
             )
+            .chain(self.materials.values().map(Into::into))
+            .chain(self.images.values().map(Into::into))
             .collect::<Vec<_>>()
             .into_iter()
     }
@@ -231,10 +244,14 @@ impl FromWorld for GameAssets {
             GameMaterial::AimArrowBorder,
             asset_server.load("models/arrow.glb#Material0"),
         );
+        let mut images = HashMap::default();
+        images.insert(GameImage::Player, asset_server.load("images/player.png"));
+        images.insert(GameImage::Star, asset_server.load("images/star.png"));
         Self {
             scenes,
             animations: Default::default(),
             materials,
+            images,
         }
     }
 }
