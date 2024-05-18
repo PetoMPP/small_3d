@@ -260,7 +260,7 @@ fn initialize_game_scene(
                         children,
                         &meshes,
                         &mesh_entities,
-                        (GameBounds, Visibility::Hidden),
+                        (GameBounds, Sensor, Visibility::Hidden),
                     );
                 }
             }
@@ -365,7 +365,7 @@ fn get_collider_from_mesh_entity(
 
 fn reward_points_on_collision(
     mut commands: Commands,
-    game_points: Query<(Entity, &Parent, &GamePoints), With<GamePoints>>,
+    game_points: Query<(Entity, &Parent, &GamePoints)>,
     player: Query<Entity, With<Player>>,
     rapier_context: ResMut<RapierContext>,
     mut game_data: ResMut<GameData>,
@@ -390,7 +390,7 @@ struct GameBounds;
 
 fn reload_on_bounds_collision(
     mut set_game_level: EventWriter<SetGameLevel>,
-    mut ground_collisions: EventReader<CollisionEvent>,
+    rapier_context: ResMut<RapierContext>,
     game_data: Res<GameData>,
     player: Query<Entity, With<Player>>,
     bounds: Query<Entity, With<GameBounds>>,
@@ -402,13 +402,8 @@ fn reload_on_bounds_collision(
         return;
     };
 
-    let entities = [player_entity, bounds_entity];
-    for collision in ground_collisions.read() {
-        if let CollisionEvent::Started(e1, e2, _) = collision {
-            if entities.contains(e1) && entities.contains(e2) {
-                set_game_level.send(SetGameLevel(game_data.level));
-            }
-        }
+    if rapier_context.intersection_pair(player_entity, bounds_entity).unwrap_or_default() {
+        set_game_level.send(SetGameLevel(game_data.level));
     }
 }
 

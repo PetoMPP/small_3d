@@ -33,7 +33,7 @@ pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos:
             transform: Transform::from_translation(pos),
             ..Default::default()
         })
-        .insert((
+        .try_insert((
             Player,
             Sleeping::default(),
             ExternalImpulse::default(),
