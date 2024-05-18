@@ -1,4 +1,7 @@
-use super::game_scene_plugin::{GameData, SetGameLevel};
+use super::{
+    aiming_plugin::DragInfo,
+    game_scene_plugin::{GameData, SetGameLevel},
+};
 use crate::{
     common::plugins::ui_plugin::{styles, UiNode, UiOnClick, UiOnClickBundle, UiState, UiStyle},
     game::game_plugin::GameState,
@@ -6,7 +9,7 @@ use crate::{
     AppState,
 };
 use bevy::prelude::*;
-use bevy_vector_shapes::shapes::RectPainter;
+use bevy_vector_shapes::shapes::{DiscPainter, RectPainter, ThicknessType};
 
 pub struct GameUiPlugin;
 
@@ -16,13 +19,14 @@ impl Plugin for GameUiPlugin {
             .add_systems(
                 Update,
                 (
-                    switch_ui
-                        .run_if(state_changed::<GameState>)
-                        .run_if(in_state(AppState::InGame)),
-                    update_score_tracker
-                        .run_if(resource_changed::<GameData>)
-                        .run_if(in_state(AppState::InGame)),
-                ),
+                    switch_ui.run_if(state_changed::<GameState>),
+                    (
+                        update_score_tracker.run_if(resource_changed::<GameData>),
+                        set_aim_circle_visibility,
+                    )
+                        .after(switch_ui),
+                )
+                    .run_if(in_state(AppState::InGame)),
             );
     }
 }
@@ -51,26 +55,26 @@ trait GameUiOnClick {
     fn resume_game() -> Self;
     fn restart_game() -> Self;
     fn back_to_main_menu() -> Self;
+    fn start_aim() -> Self;
 }
 
 impl GameUiOnClick for UiOnClick {
     fn pause_game() -> Self {
-        Self::new(|world| {
-            world
-                .resource_mut::<NextState<GameState>>()
+        Self::new(|w, _| {
+            w.resource_mut::<NextState<GameState>>()
                 .set(GameState::Paused);
         })
     }
 
     fn resume_game() -> Self {
-        Self::new(|w: &mut World| {
+        Self::new(|w, _| {
             w.resource_mut::<NextState<GameState>>()
                 .set(GameState::Playing)
         })
     }
 
     fn restart_game() -> Self {
-        Self::new(|w: &mut World| {
+        Self::new(|w, _| {
             w.resource_mut::<NextState<GameState>>()
                 .set(GameState::Playing);
             w.send_event(SetGameLevel(w.resource::<GameData>().level));
@@ -78,10 +82,26 @@ impl GameUiOnClick for UiOnClick {
     }
 
     fn back_to_main_menu() -> Self {
-        Self::new(|w: &mut World| {
+        Self::new(|w, _| {
             w.resource_mut::<NextState<AppState>>()
                 .set(AppState::MainMenu)
         })
+    }
+
+    fn start_aim() -> Self {
+        let mut res = Self::new(|w, user_input| {
+            let Some((user_input, pos)) = user_input else {
+                return;
+            };
+            let game_data = w.resource::<GameData>();
+            if game_data.shots == 0 {
+                return;
+            }
+            let mut drag_info = w.resource_mut::<DragInfo>();
+            drag_info.start(pos, *user_input);
+        });
+        res.eager_handle = true;
+        res
     }
 }
 
@@ -152,8 +172,68 @@ struct PausedElement;
 struct PlayingElement;
 
 fn spawn_game_menu(commands: &mut Commands, window: &Window, text_styles: &TextStyles) {
+    spawn_aim_circle(commands, window);
     spawn_pause_button(commands, window);
     spawn_score_tracker(commands, window, text_styles);
+}
+
+#[derive(Component)]
+pub struct AimCircle;
+
+pub fn spawn_aim_circle(commands: &mut Commands, window: &Window) {
+    let radius = window.height().min(window.width()) / 7.0;
+    let mut container = styles::container_node(Val::Percent(100.0), Val::Percent(100.0));
+    container.style.position_type = PositionType::Absolute;
+
+    let circle = (
+        styles::container_node(Val::Px(radius * 2.0), Val::Px(radius * 2.0)),
+        AimCircle,
+        UiOnClickBundle {
+            ui_on_click: UiOnClick::start_aim(),
+            ..Default::default()
+        },
+        UiNode {
+            paint: Box::new(|painter, size, _, _| {
+                let radius = size.x.min(size.y) / 2.0;
+                painter.color = Color::WHITE.with_a(0.9);
+                painter.hollow = true;
+                painter.thickness = 0.8;
+                painter.thickness_type = ThicknessType::Screen;
+                const STEPS: usize = 16;
+                for i in 0..=STEPS {
+                    const STEP: f32 = 1.0 / STEPS as f32 * 2.0 * std::f32::consts::PI;
+                    const OFFSET: f32 = 0.3 * STEP;
+                    let angle = i as f32 * STEP + OFFSET;
+                    painter.arc(radius, angle, angle + STEP / 2.7);
+                }
+            }),
+            corner_radius: radius,
+        },
+    );
+
+    commands
+        .spawn((container, PlayingElement))
+        .with_children(|parent| {
+            parent.spawn(circle);
+        });
+}
+
+fn set_aim_circle_visibility(
+    mut circle: Query<&mut Style, With<AimCircle>>,
+    game_data: Res<GameData>,
+    drag_info: Res<DragInfo>,
+    game_state: Res<State<GameState>>,
+) {
+    if !game_data.is_changed() && !drag_info.is_changed() && !game_state.is_changed() {
+        return;
+    }
+
+    let visible =
+        game_data.shots > 0 && drag_info.is_none() && game_state.get() == &GameState::Playing;
+    circle.single_mut().display = match visible {
+        true => Display::Flex,
+        false => Display::None,
+    };
 }
 
 #[derive(Component)]
