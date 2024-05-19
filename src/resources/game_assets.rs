@@ -1,15 +1,22 @@
 use super::loadable::Loadable;
-use crate::game::plugins::{
-    aiming_plugin::ArrowAnimationPlayer,
-    game_scene_plugin::{GameData, GameSceneAnimationPlayer},
+use crate::{
+    game::plugins::{
+        aiming_plugin::ArrowAnimationPlayer,
+        game_scene_plugin::{GameData, GameSceneAnimationPlayer},
+    },
+    log,
 };
 use bevy::{
-    asset::UntypedAssetId, prelude::*, render::render_resource::Face, utils::hashbrown::HashMap,
+    asset::UntypedAssetId,
+    prelude::*,
+    render::{color::HexColorError, render_resource::Face},
+    utils::hashbrown::HashMap,
 };
 use bevy_rapier3d::{
     dynamics::{Ccd, RigidBody},
     geometry::ColliderMassProperties,
 };
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 pub enum GameScene {
@@ -100,8 +107,59 @@ pub trait GameAnimationSource {
     fn get_animation_filename(&self) -> &str;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect, Serialize, Deserialize)]
+pub enum GameColor {
+    Primary,
+    Secondary,
+    Accent,
+    Neutral,
+    Base,
+    Info,
+    Success,
+    Warning,
+    Error,
+}
+
+#[derive(Clone, Debug, Reflect, Default, Serialize, Deserialize)]
+pub struct GameColors {
+    data: HashMap<String, HashMap<GameColor, (Color, Color)>>,
+    theme: String,
+}
+
+impl GameColors {
+    pub fn from_json(json: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let data_raw =
+            serde_json::from_str::<HashMap<String, HashMap<GameColor, (String, String)>>>(json)?;
+
+        let mut result = Self::default();
+        data_raw.into_iter().try_for_each(|(k, v)| {
+            let mut colors = HashMap::default();
+            v.into_iter().try_for_each(|(k, (c, cc))| {
+                let (c, cc) = (Color::hex(&c)?, Color::hex(&cc)?);
+                colors.insert(k, (c, cc));
+                Result::<_, HexColorError>::Ok(())
+            })?;
+            result.data.insert(k, colors);
+            Result::<_, HexColorError>::Ok(())
+        })?;
+        result.theme = result.data.keys().next().ok_or("Empty themes!")?.clone();
+        log!("GameColors: {:?}", result);
+
+        Ok(result)
+    }
+
+    pub fn get(&self, color: GameColor) -> Color {
+        self.data[&self.theme][&color].0
+    }
+
+    pub fn get_content(&self, color: GameColor) -> Color {
+        self.data[&self.theme][&color].1
+    }
+}
+
 #[derive(Resource, Clone, Reflect)]
 pub struct GameAssets {
+    pub colors: GameColors,
     scenes: HashMap<GameScene, Handle<Scene>>,
     animations: HashMap<String, HashMap<Name, Handle<AnimationClip>>>,
     materials: HashMap<GameMaterial, Handle<StandardMaterial>>,
@@ -247,6 +305,8 @@ impl IntoIterator for &GameAssets {
     }
 }
 
+const THEMES_JSON: &str = include_str!("../../assets/themes.json");
+
 impl FromWorld for GameAssets {
     fn from_world(world: &mut World) -> Self {
         let window = {
@@ -282,11 +342,13 @@ impl FromWorld for GameAssets {
         images.insert(GameImage::Splash, asset_server.load(splash));
         images.insert(GameImage::Player, asset_server.load("images/player.png"));
         images.insert(GameImage::Star, asset_server.load("images/star.png"));
+        let colors = GameColors::from_json(THEMES_JSON).unwrap();
         Self {
             scenes,
             animations: Default::default(),
             materials,
             images,
+            colors,
         }
     }
 }
