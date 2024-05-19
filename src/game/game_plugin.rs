@@ -1,9 +1,8 @@
-use super::components::{GameCamera, GameUiCamera};
 use super::plugins::aiming_plugin::AimingPlugin;
 use super::plugins::custom_tweening_plugin::CustomTweeningPlugin;
 use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameLevel};
 use super::plugins::game_ui_plugin::GameUiPlugin;
-use super::plugins::player_plugin::PlayerPlugin;
+use super::plugins::game_camera_plugin::{GameCameraPlugin, GameCamera};
 use crate::resources::game_assets::GameLevel;
 use crate::AppState;
 use bevy::ecs::schedule::ScheduleLabel;
@@ -37,7 +36,7 @@ impl Plugin for GamePlugin {
             .add_plugins(TweeningPlugin)
             .add_plugins((
                 AimingPlugin,
-                PlayerPlugin,
+                GameCameraPlugin,
                 GameScenePlugin,
                 CustomTweeningPlugin,
                 GameUiPlugin,
@@ -86,17 +85,6 @@ fn start_game(
             ..Default::default()
         })
         .insert(GameCamera::default());
-    commands
-        .spawn(Camera2dBundle {
-            camera: Camera {
-                order: 1,
-                clear_color: ClearColorConfig::None,
-                ..Default::default()
-            },
-            transform: Transform::from_xyz(0.0, 0.0, 100.0),
-            ..Default::default()
-        })
-        .insert(GameUiCamera);
 
     // game scene
     set_scene.send(SetGameLevel(Some(GameLevel::Demo)));
@@ -106,12 +94,11 @@ fn cleanup_game(
     mut commands: Commands,
     mut set_scene: EventWriter<SetGameLevel>,
     mut rapier_config: ResMut<RapierConfiguration>,
-    camera_2d: Query<Entity, With<GameUiCamera>>,
-    camera_3d: Query<Entity, With<GameCamera>>,
+    camera: Query<Entity, With<GameCamera>>,
     light: Query<Entity, With<SpotLight>>,
 ) {
     *rapier_config = RapierConfiguration::default();
-    for entity in camera_2d.iter().chain(camera_3d.iter()).chain(light.iter()) {
+    for entity in camera.iter().chain(light.iter()) {
         commands.entity(entity).despawn_recursive();
     }
     set_scene.send(SetGameLevel(None));

@@ -103,15 +103,28 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<UiState>().add_systems(
-            Update,
-            (
-                handle_on_click,
-                render_bg,
-                override_interactions.after(ui_focus_system),
-            ),
-        );
+        app.register_type::<UiState>()
+            .add_systems(Startup, spawn_camera)
+            .add_systems(
+                Update,
+                (
+                    handle_on_click,
+                    render_bg,
+                    override_interactions.after(ui_focus_system),
+                ),
+            );
     }
+}
+
+fn spawn_camera(mut commands: Commands) {
+    commands.spawn(Camera2dBundle {
+        camera: Camera {
+            order: 1,
+            clear_color: ClearColorConfig::None,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 }
 
 fn override_interactions(

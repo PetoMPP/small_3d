@@ -1,14 +1,11 @@
 use super::{
     custom_tweening_plugin::{update_scale, RelativeScale, RelativeScaleLens},
-    game_scene_plugin::GameData,
-    player_plugin::Player,
+    game_camera_plugin::GameCamera,
+    game_scene_plugin::{GameData, GameEntity, Player},
 };
 use crate::{
     common::plugins::user_input_plugin::{UserInput, UserInputPosition},
-    game::{
-        components::{GameCamera, GameEntity},
-        game_plugin::GameState,
-    },
+    game::game_plugin::GameState,
     log,
     resources::{
         game_assets::{GameAnimationSource, GameAssets, GameMaterial, GameScene},
