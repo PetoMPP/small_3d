@@ -1,56 +1,55 @@
 use super::aiming_plugin::DragInfo;
+use super::game_scene_plugin::Player;
 use crate::common::plugins::user_input_plugin::{UserInput, UserInputPosition};
-use crate::game::plugins::aiming_plugin::spawn_arrow;
-use crate::resources::game_assets::{GameAssets, GameScene};
 use crate::resources::inputs::Inputs;
-use crate::{
-    game::components::{GameCamera, GameEntity},
-    AppState,
-};
+use crate::AppState;
 use bevy::{input::mouse::MouseWheel, prelude::*};
-use bevy_rapier3d::prelude::*;
 
-pub struct PlayerPlugin;
+#[derive(Component)]
+pub struct GameCamera {
+    distance: f32,
+    offset: Vec2,
+}
 
-impl Plugin for PlayerPlugin {
+impl GameCamera {
+    pub fn get_distance(&self) -> f32 {
+        self.distance
+    }
+
+    pub fn distance(&mut self, distance: f32) {
+        self.distance = (self.distance + distance).clamp(4.0, 8.0);
+    }
+
+    pub fn get_offset(&self) -> Vec2 {
+        self.offset
+    }
+
+    pub fn offset(&mut self, offset: Vec2) {
+        self.offset = Vec2::new(
+            self.offset.x + offset.x,
+            (self.offset.y + offset.y).clamp(0.0 + 0.001, std::f32::consts::PI - 0.001),
+        );
+    }
+}
+
+impl Default for GameCamera {
+    fn default() -> Self {
+        Self {
+            distance: 6.0,
+            offset: Vec2::new(0.0, std::f32::consts::FRAC_PI_3),
+        }
+    }
+}
+
+pub struct GameCameraPlugin;
+
+impl Plugin for GameCameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
             (move_camera_and_light, zoom_camera, rotate_camera).run_if(in_state(AppState::InGame)),
         );
     }
-}
-
-#[derive(Component)]
-pub struct Player;
-
-pub const PLAYER_RADIUS: f32 = 0.2;
-
-pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
-    commands
-        .spawn(SceneBundle {
-            scene: game_assets.get_scene(GameScene::Player),
-            transform: Transform::from_translation(pos),
-            ..Default::default()
-        })
-        .try_insert((
-            Player,
-            Sleeping::default(),
-            ExternalImpulse::default(),
-            RigidBody::Dynamic,
-            Collider::ball(PLAYER_RADIUS),
-            Friction::coefficient(0.6),
-            Restitution::new(0.3),
-            Damping {
-                linear_damping: 0.5,
-                angular_damping: 0.5,
-            },
-            ColliderMassProperties::Mass(10.0),
-            ActiveEvents::COLLISION_EVENTS,
-            Ccd::enabled(),
-            GameEntity,
-        ));
-    spawn_arrow(commands, game_assets, pos);
 }
 
 fn move_camera_and_light(

@@ -1,15 +1,13 @@
 use super::{
-    aiming_plugin::DragInfo,
+    aiming_plugin::{spawn_arrow, DragInfo},
     custom_tweening_plugin::GameTween,
-    player_plugin::{Player, PLAYER_RADIUS},
+    game_camera_plugin::GameCamera,
 };
 use crate::{
     game::{
-        components::{GameCamera, GameEntity},
         game_plugin::GameState,
-        plugins::{
-            custom_tweening_plugin::{RelativeScale, RelativeScaleLens, Rotation, RotationLens},
-            player_plugin::spawn_player,
+        plugins::custom_tweening_plugin::{
+            RelativeScale, RelativeScaleLens, Rotation, RotationLens,
         },
     },
     log,
@@ -25,7 +23,8 @@ use bevy_tweening::{Animator, EaseFunction, EaseMethod, RepeatCount, RepeatStrat
 use rand::Rng;
 use std::time::Duration;
 
-pub struct GameScenePlugin;
+#[derive(Component, Clone, Copy)]
+pub struct GameEntity;
 
 #[derive(Resource, Default, Clone, Reflect)]
 #[reflect(Resource)]
@@ -40,6 +39,8 @@ struct LevelChanged;
 
 #[derive(Event, Deref, DerefMut)]
 pub struct SetGameLevel(pub Option<GameLevel>);
+
+pub struct GameScenePlugin;
 
 impl Plugin for GameScenePlugin {
     fn build(&self, app: &mut App) {
@@ -334,6 +335,38 @@ fn initialize_game_scene(
     }
 }
 
+#[derive(Component)]
+pub struct Player;
+
+pub const PLAYER_RADIUS: f32 = 0.2;
+
+pub fn spawn_player(commands: &mut Commands, game_assets: &Res<GameAssets>, pos: Vec3) {
+    commands
+        .spawn(SceneBundle {
+            scene: game_assets.get_scene(GameScene::Player),
+            transform: Transform::from_translation(pos),
+            ..Default::default()
+        })
+        .try_insert((
+            Player,
+            Sleeping::default(),
+            ExternalImpulse::default(),
+            RigidBody::Dynamic,
+            Collider::ball(PLAYER_RADIUS),
+            Friction::coefficient(0.6),
+            Restitution::new(0.3),
+            Damping {
+                linear_damping: 0.5,
+                angular_damping: 0.5,
+            },
+            ColliderMassProperties::Mass(10.0),
+            ActiveEvents::COLLISION_EVENTS,
+            Ccd::enabled(),
+            GameEntity,
+        ));
+    spawn_arrow(commands, game_assets, pos);
+}
+
 fn insert_collider_into_entities<'a>(
     commands: &mut Commands,
     entities: impl IntoIterator<Item = &'a Entity>,
@@ -402,7 +435,10 @@ fn reload_on_bounds_collision(
         return;
     };
 
-    if rapier_context.intersection_pair(player_entity, bounds_entity).unwrap_or_default() {
+    if rapier_context
+        .intersection_pair(player_entity, bounds_entity)
+        .unwrap_or_default()
+    {
         set_game_level.send(SetGameLevel(game_data.level));
     }
 }
