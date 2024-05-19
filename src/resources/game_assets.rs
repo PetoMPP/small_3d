@@ -26,8 +26,36 @@ pub enum GameMaterial {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 pub enum GameImage {
+    Splash,
     Player,
     Star,
+}
+
+impl GameImage {
+    #[inline]
+    pub fn splash_ratios() -> Vec<(f32, f32)> {
+        vec![
+            (19.5, 9.0),
+            (19.0, 9.0),
+            (56.0, 27.0),
+            (18.5, 9.0),
+            (18.0, 9.0),
+            (19.0, 10.0),
+            (16.0, 9.0),
+            (5.0, 3.0),
+            (16.0, 10.0),
+            (3.0, 2.0),
+            (4.0, 3.0),
+        ]
+    }
+
+    pub fn get_current_splash_ratio(window: &Window) -> (f32, f32) {
+        let ratio = window.height() / window.width();
+        Self::splash_ratios()
+            .into_iter()
+            .min_by_key(|(w, h)| (((h / w) - ratio).abs() * 1000.0) as u64)
+            .unwrap()
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
@@ -221,6 +249,10 @@ impl IntoIterator for &GameAssets {
 
 impl FromWorld for GameAssets {
     fn from_world(world: &mut World) -> Self {
+        let window = {
+            let mut query = world.query::<&Window>();
+            query.single(world)
+        };
         let asset_server = world.resource::<AssetServer>();
         let mut scenes = HashMap::default();
         scenes.insert(
@@ -245,6 +277,9 @@ impl FromWorld for GameAssets {
             asset_server.load("models/arrow.glb#Material0"),
         );
         let mut images = HashMap::default();
+        let (x, y) = GameImage::get_current_splash_ratio(&window);
+        let splash = format!("images/splash_{}x{}.png", x, y);
+        images.insert(GameImage::Splash, asset_server.load(splash));
         images.insert(GameImage::Player, asset_server.load("images/player.png"));
         images.insert(GameImage::Star, asset_server.load("images/star.png"));
         Self {

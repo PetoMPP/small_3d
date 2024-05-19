@@ -1,7 +1,7 @@
 use crate::common::plugins::ui_plugin::{styles, UiOnClick, UiOnClickBundle};
 use crate::common::plugins::user_input_plugin::UserInput;
 use crate::game::game_plugin::GameState;
-use crate::resources::game_assets::GameAssets;
+use crate::resources::game_assets::{GameAssets, GameImage};
 use crate::resources::loadable::Loadable;
 use crate::resources::text_styles::{FontSize, FontType};
 use crate::{AppState, TextStyles};
@@ -50,33 +50,45 @@ struct MenuText;
 const READY_TEXT: &str = "Press any key to start";
 const LOADING_TEXT: &str = "Loading..";
 
-fn init_main_menu(mut commands: Commands, text_styles: Res<TextStyles>) {
+fn init_main_menu(
+    mut commands: Commands,
+    text_styles: Res<TextStyles>,
+    game_assets: Res<GameAssets>,
+) {
     commands.spawn((Camera2dBundle::default(), MenuCamera));
     commands
         .spawn((
-            NodeBundle {
-                style: styles::container(Val::Percent(100.0), Val::Percent(100.0)),
-                background_color: Color::rgb_from_array([0.2, 0.2, 0.2]).into(),
-                ..default()
-            },
+            styles::container_node(Val::Percent(100.0), Val::Percent(100.0)),
             MenuNode,
             UiOnClickBundle {
                 ui_on_click: UiOnClick::new(set_in_game),
                 ..Default::default()
             },
         ))
-        .with_children(|root| {
-            root.spawn((
-                TextBundle {
-                    text: Text::from_section(
-                        LOADING_TEXT,
-                        text_styles.get(FontType::Bold, FontSize::Large, Color::WHITE),
-                    )
-                    .with_justify(JustifyText::Center),
+        .with_children(|parent| {
+            parent
+                .spawn(ImageBundle {
+                    image: UiImage::new(game_assets.get_image(GameImage::Splash)),
+                    style: Style {
+                        align_items: AlignItems::End,
+                        padding: UiRect::vertical(Val::Percent(15.0)),
+                        ..styles::container(Val::Percent(100.0), Val::Percent(100.0))
+                    },
                     ..Default::default()
-                },
-                MenuText,
-            ));
+                })
+                .with_children(|root| {
+                    root.spawn((
+                        TextBundle {
+                            text: Text::from_section(
+                                LOADING_TEXT,
+                                text_styles.get(FontType::Bold, FontSize::Large, Color::WHITE),
+                            )
+                            .with_justify(JustifyText::Center),
+                            ..Default::default()
+                        },
+                        MenuText,
+                    ));
+                });
         });
 }
 
