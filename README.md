@@ -34,14 +34,14 @@ Check it out on https://petompp.github.io/small_3d/ (Best played on mobile)
           - [ ] Graphics settings
           - [ ] Audio settings
           - [ ] Account settings?
-      - [x] Game
-          - [x] Shoots tracker
-          - [x] Points tracker
-          - [x] Stars/note progress tracker
-          - [x] Pause menu
-              - [x] Reset level
-              - [x] Resume
-              - [x] Back to menu
+  - [x] Game
+      - [x] Shoots tracker
+      - [x] Points tracker
+      - [x] Stars/note progress tracker
+      - [x] Pause menu
+          - [x] Reset level
+          - [x] Resume
+          - [x] Back to menu
 - [ ] Sounds
     - [ ] Background music
     - [ ] Collision sounds

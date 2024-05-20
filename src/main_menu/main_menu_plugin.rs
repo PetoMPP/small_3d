@@ -1,7 +1,11 @@
-use crate::common::plugins::ui_plugin::{styles, UiOnClick, UiOnClickBundle};
+use super::plugins::loading_view_plugin::LoadingViewPlugin;
+use crate::common::plugins::ui_plugin::components::{
+    UiBase, UiBuilder, UiButton, UiComponent, UiContainer,
+};
+use crate::common::plugins::ui_plugin::UiOnClick;
 use crate::common::plugins::user_input_plugin::UserInput;
 use crate::game::game_plugin::GameState;
-use crate::resources::game_assets::{GameAssets, GameImage};
+use crate::resources::game_assets::{GameAssets, GameColor};
 use crate::resources::loadable::Loadable;
 use crate::resources::text_styles::{FontSize, FontType};
 use crate::{AppState, TextStyles};
@@ -11,84 +15,50 @@ pub struct MainMenuPlugin;
 
 impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::MainMenu), init_main_menu)
-            .add_systems(Update, (update_text).run_if(in_state(AppState::MainMenu)))
+        app.add_plugins(LoadingViewPlugin)
+            .add_systems(OnEnter(AppState::MainMenu), init_main_menu)
             .add_systems(OnExit(AppState::MainMenu), cleanup_main_menu);
     }
 }
 
-fn update_text(
-    mut query: Query<(&mut Text, &MenuText)>,
-    asset_server: Res<AssetServer>,
-    game_assets: Res<GameAssets>,
-    text_styles: Res<TextStyles>,
-) {
-    let Some((mut text, _)) = query.iter_mut().next() else {
-        return;
-    };
-
-    if text.sections[0].value.as_str() == READY_TEXT {
-        return;
-    }
-
-    if !game_assets.loaded(&asset_server) || !text_styles.loaded(&asset_server) {
-        return;
-    }
-
-    text.sections[0].value = READY_TEXT.to_string();
-}
-
-#[derive(Component)]
-struct MenuCamera;
-
 #[derive(Component)]
 struct MenuNode;
 
-#[derive(Component)]
-struct MenuText;
+fn init_main_menu(mut commands: Commands, mut ui_builder: UiBuilder) {
+    // TODO: Background scene'
+    let base = UiBase::new(ui_builder.game_assets.colors.get(GameColor::Base));
+    let title = TextBundle {
+        text: Text::from_section(
+            "Small 3D",
+            ui_builder.text_styles.get(
+                FontType::Bold,
+                FontSize::XLarge,
+                ui_builder.game_assets.colors.get_content(GameColor::Base),
+            ),
+        )
+        .with_justify(JustifyText::Center),
+        style: Style {
+            position_type: PositionType::Absolute,
+            top: Val::Vh(10.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let menu: UiContainer = ui_builder.create(Val::Auto, Val::Auto);
+    let buttons = vec![ui_builder
+        .create::<UiButton>(Val::Auto, Val::Auto)
+        .with_text("Play")
+        .with_on_click(UiOnClick::new(set_in_game))];
 
-const READY_TEXT: &str = "Press any key to start";
-const LOADING_TEXT: &str = "Loading..";
-
-fn init_main_menu(
-    mut commands: Commands,
-    text_styles: Res<TextStyles>,
-    game_assets: Res<GameAssets>,
-) {
-    commands.spawn((Camera2dBundle::default(), MenuCamera));
-    commands
-        .spawn((
-            styles::container_node(Val::Percent(100.0), Val::Percent(100.0)),
-            MenuNode,
-            UiOnClickBundle {
-                ui_on_click: UiOnClick::new(set_in_game),
-                ..Default::default()
-            },
-        ))
+    base.spawn(&mut commands)
+        .insert(MenuNode)
         .with_children(|parent| {
-            parent
-                .spawn(ImageBundle {
-                    image: UiImage::new(game_assets.get_image(GameImage::Splash)),
-                    style: Style {
-                        align_items: AlignItems::End,
-                        padding: UiRect::vertical(Val::Percent(15.0)),
-                        ..styles::container(Val::Percent(100.0), Val::Percent(100.0))
-                    },
-                    ..Default::default()
-                })
-                .with_children(|root| {
-                    root.spawn((
-                        TextBundle {
-                            text: Text::from_section(
-                                LOADING_TEXT,
-                                text_styles.get(FontType::Bold, FontSize::Large, Color::WHITE),
-                            )
-                            .with_justify(JustifyText::Center),
-                            ..Default::default()
-                        },
-                        MenuText,
-                    ));
-                });
+            parent.spawn(title);
+            menu.spawn(parent).with_children(|parent| {
+                for button in buttons {
+                    button.spawn(parent);
+                }
+            });
         });
 }
 
@@ -108,11 +78,6 @@ fn set_in_game(world: &mut World, _user_input: Option<(&UserInput, Vec2)>) {
         .set(GameState::Playing);
 }
 
-fn cleanup_main_menu(
-    mut commands: Commands,
-    node: Query<Entity, With<MenuNode>>,
-    camera: Query<Entity, With<MenuCamera>>,
-) {
+fn cleanup_main_menu(mut commands: Commands, node: Query<Entity, With<MenuNode>>) {
     commands.entity(node.single()).despawn_recursive();
-    commands.entity(camera.single()).despawn_recursive();
 }
