@@ -6,9 +6,24 @@ use bevy_vector_shapes::{
     shapes::{RectPainter, ThicknessType},
 };
 
+#[derive(Clone, Copy)]
+pub struct UiPointerEventData {
+    pub pos: Vec2,
+    pub user_input: UserInput,
+}
+
+impl Default for UiPointerEventData {
+    fn default() -> Self {
+        Self {
+            pos: Vec2::default(),
+            user_input: UserInput(0),
+        }
+    }
+}
+
 #[derive(Component, Clone, Copy)]
 pub struct UiOnClick {
-    pub command: UiCommand,
+    pub command: UiCommand<UiPointerEventData>,
     // if true, the click will be handled on press
     pub eager_handle: bool,
     // if false, the click will not be handled once
@@ -16,7 +31,7 @@ pub struct UiOnClick {
 }
 
 impl UiOnClick {
-    pub fn new(on_click: fn(&mut World, Option<(&UserInput, Vec2)>) -> ()) -> Self {
+    pub fn new(on_click: fn(&mut World, &UiCommandContext<UiPointerEventData>) -> ()) -> Self {
         Self {
             command: UiCommand::new(on_click),
             ..Default::default()
@@ -35,14 +50,28 @@ impl Default for UiOnClick {
 }
 
 #[derive(Clone, Copy)]
-pub struct UiCommand {
-    command: fn(&mut World, Option<(&UserInput, Vec2)>) -> (),
-    user_input: Option<UserInput>,
-    pos: Option<Vec2>,
+pub struct UiCommandContext<E: Clone + Copy + Default> {
+    pub entity: Entity,
+    pub event_data: Option<E>,
 }
 
-impl UiCommand {
-    pub fn new(command: fn(&mut World, Option<(&UserInput, Vec2)>) -> ()) -> Self {
+impl<E: Clone + Copy + Default> Default for UiCommandContext<E> {
+    fn default() -> Self {
+        Self {
+            entity: Entity::from_raw(u32::MAX),
+            event_data: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct UiCommand<E: Clone + Copy + Default> {
+    command: fn(&mut World, &UiCommandContext<E>) -> (),
+    context: UiCommandContext<E>,
+}
+
+impl<E: Clone + Copy + Default> UiCommand<E> {
+    pub fn new(command: fn(&mut World, &UiCommandContext<E>) -> ()) -> Self {
         Self {
             command,
             ..Default::default()
@@ -50,24 +79,18 @@ impl UiCommand {
     }
 }
 
-impl Default for UiCommand {
+impl<E: Clone + Copy + Default> Default for UiCommand<E> {
     fn default() -> Self {
         Self {
             command: |_, _| {},
-            user_input: None,
-            pos: None,
+            context: UiCommandContext::<E>::default(),
         }
     }
 }
 
-impl Command for UiCommand {
+impl<E: Clone + Copy + Default + Send + Sync + 'static> Command for UiCommand<E> {
     fn apply(self, world: &mut World) {
-        (self.command)(
-            world,
-            self.user_input
-                .as_ref()
-                .and_then(|u| self.pos.map(|p| (u, p))),
-        );
+        (self.command)(world, &self.context);
     }
 }
 
@@ -344,7 +367,6 @@ fn override_interactions(
         .iter_pressed()
         .next()
         .and_then(|u| user_input_positions.get(u.0).map(|p| (p, **u)))
-        .or(user_input_positions.get(0).map(|p| (p, 0)))
     else {
         return;
     };
@@ -357,8 +379,11 @@ fn override_interactions(
             *interaction = Interaction::None;
             on_click.handle = false;
         }
-        on_click.command.user_input = Some(UserInput(user_input));
-        on_click.command.pos = Some(pos);
+
+        on_click.command.context.event_data = Some(UiPointerEventData {
+            pos,
+            user_input: UserInput(user_input),
+        });
     }
 }
 
@@ -381,6 +406,7 @@ fn handle_on_click(
                 ui_on_click.handle = true;
                 continue;
             }
+            ui_on_click.command.context.entity = entity;
             commands.add(ui_on_click.command);
         }
     }
