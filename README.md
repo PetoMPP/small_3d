@@ -42,8 +42,9 @@ Check it out on https://petompp.github.io/small_3d/ (Best played on mobile)
           - [x] Reset level
           - [x] Resume
           - [x] Back to menu
-- [ ] Sounds
-    - [ ] Background music
-    - [ ] Collision sounds
-    - [ ] Loss sound
-    - [ ] Win sound
+          - [ ] Level end screen
+  - [ ] Sounds
+      - [ ] Background music
+      - [ ] Collision sounds
+      - [ ] Loss sound
+      - [ ] Win sound

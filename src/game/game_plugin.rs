@@ -1,9 +1,8 @@
 use super::plugins::aiming_plugin::AimingPlugin;
 use super::plugins::custom_tweening_plugin::CustomTweeningPlugin;
-use super::plugins::game_scene_plugin::{GameScenePlugin, SetGameLevel};
+use super::plugins::game_camera_plugin::{GameCamera, GameCameraPlugin};
+use super::plugins::game_scene_plugin::{GameData, GameScenePlugin, SetGameLevel};
 use super::plugins::game_ui_plugin::GameUiPlugin;
-use super::plugins::game_camera_plugin::{GameCameraPlugin, GameCamera};
-use crate::resources::game_assets::GameLevel;
 use crate::AppState;
 use bevy::ecs::schedule::ScheduleLabel;
 use bevy::prelude::*;
@@ -56,6 +55,7 @@ fn start_game(
     mut commands: Commands,
     mut set_scene: EventWriter<SetGameLevel>,
     mut rapier_config: ResMut<RapierConfiguration>,
+    game_data: Res<GameData>,
 ) {
     // collision config
     rapier_config.gravity = Vec3::Z * -9.81;
@@ -87,7 +87,7 @@ fn start_game(
         .insert(GameCamera::default());
 
     // game scene
-    set_scene.send(SetGameLevel(Some(GameLevel::Demo)));
+    set_scene.send(SetGameLevel(Some(game_data.level.unwrap())));
 }
 
 fn cleanup_game(
