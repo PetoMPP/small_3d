@@ -105,8 +105,8 @@ impl GameUiOnClick for UiOnClick {
     }
 
     fn start_aim() -> Self {
-        let mut res = Self::new(|w, user_input| {
-            let Some((user_input, pos)) = user_input else {
+        let mut res = Self::new(|w, ctx| {
+            let Some(pointer_data) = ctx.event_data else {
                 return;
             };
             let game_data = w.resource::<GameData>();
@@ -114,7 +114,7 @@ impl GameUiOnClick for UiOnClick {
                 return;
             }
             let mut drag_info = w.resource_mut::<DragInfo>();
-            drag_info.start(pos, *user_input);
+            drag_info.start(pointer_data.pos, pointer_data.user_input);
         });
         res.eager_handle = true;
         res
