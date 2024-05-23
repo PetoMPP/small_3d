@@ -15,38 +15,37 @@ pub struct MainMenuPlugin;
 
 impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<MenuNode>()
-            .register_type::<PlayNode>()
-            .register_type::<SettingsNode>()
+        app.init_resource::<MenuState>()
+            .register_type::<MenuState>()
             .add_plugins(LoadingViewPlugin)
             .add_systems(OnEnter(AppState::MainMenu), init_main_menu)
-            .add_systems(Update, update_menu)
+            .add_systems(Update, update_menu.run_if(resource_changed::<MenuState>))
             .add_systems(OnExit(AppState::MainMenu), cleanup_main_menu);
     }
 }
 
-#[derive(Component, Default, Reflect)]
-enum MenuNode {
+#[derive(Resource, Default, Clone, Copy, Reflect)]
+pub enum MenuState {
     #[default]
     Root,
-    Play(PlayNode),
-    Settings(SettingsNode),
+    Play(PlayMenuState),
+    Settings(SettingsMenuState),
 }
 
-impl MenuNode {
-    fn go_back(&mut self) {
+impl MenuState {
+    pub fn go_back(&mut self) {
         *self = match self {
-            MenuNode::Root
-            | MenuNode::Play(PlayNode::Root)
-            | MenuNode::Settings(SettingsNode::Root) => MenuNode::Root,
-            MenuNode::Play(_) => MenuNode::Play(PlayNode::Root),
-            MenuNode::Settings(_) => MenuNode::Settings(SettingsNode::Root),
+            MenuState::Root
+            | MenuState::Play(PlayMenuState::Root)
+            | MenuState::Settings(SettingsMenuState::Root) => MenuState::Root,
+            MenuState::Play(_) => MenuState::Play(PlayMenuState::Root),
+            MenuState::Settings(_) => MenuState::Settings(SettingsMenuState::Root),
         }
     }
 }
 
-#[derive(Resource, Reflect)]
-enum PlayNode {
+#[derive(Resource, Reflect, Clone, Copy)]
+pub enum PlayMenuState {
     Root,
     LevelSelect,
     Customize,
@@ -54,8 +53,8 @@ enum PlayNode {
     Achievements,
 }
 
-#[derive(Resource, Reflect)]
-enum SettingsNode {
+#[derive(Resource, Reflect, Clone, Copy)]
+pub enum SettingsMenuState {
     Root,
     Graphics,
     Audio,
@@ -63,9 +62,12 @@ enum SettingsNode {
 }
 
 #[derive(Component)]
+struct MenuNode;
+
+#[derive(Component)]
 struct MenuContainer;
 
-fn init_main_menu(mut commands: Commands, mut ui_builder: UiBuilder) {
+fn init_main_menu(mut commands: Commands, mut ui_builder: UiBuilder, mut state: ResMut<MenuState>) {
     // TODO: Background scene'
     let base = UiBase::new(ui_builder.game_assets.colors.get(GameColor::Base));
     let title = TextBundle {
@@ -88,53 +90,60 @@ fn init_main_menu(mut commands: Commands, mut ui_builder: UiBuilder) {
     let menu: UiContainer = ui_builder.create(Val::Auto, Val::Auto);
 
     base.spawn(&mut commands)
-        .insert(MenuNode::default())
+        .insert(MenuNode)
         .with_children(|parent| {
             parent.spawn(title);
             menu.spawn(parent).insert(MenuContainer);
         });
+
+    state.set_changed();
 }
 
 fn update_menu(
     mut commands: Commands,
-    node: Query<&MenuNode, Changed<MenuNode>>,
+    state: Res<MenuState>,
     container: Query<Entity, With<MenuContainer>>,
     mut ui_builder: UiBuilder,
 ) {
-    let Some((node, container)) = node
-        .iter()
-        .next()
-        .and_then(|n| container.iter().next().map(|c| (n, c)))
-    else {
+    let Some(container) = container.iter().next() else {
         return;
     };
 
     commands.entity(container).despawn_descendants();
-    match node {
-        MenuNode::Root => {
+    match *state {
+        MenuState::Root => {
             spawn_root(&mut commands, &mut ui_builder, container);
             return;
         }
-        MenuNode::Play(play_node) => match play_node {
-            PlayNode::Root => spawn_play_root(&mut commands, &mut ui_builder, container),
-            PlayNode::LevelSelect => spawn_level_select(&mut commands, &mut ui_builder, container),
-            PlayNode::Customize => {}
-            PlayNode::Achievements => {}
+        MenuState::Play(play_node) => match play_node {
+            PlayMenuState::Root => spawn_play_root(&mut commands, &mut ui_builder, container),
+            PlayMenuState::LevelSelect => {
+                spawn_level_select(&mut commands, &mut ui_builder, container)
+            }
+            PlayMenuState::Customize => {}
+            PlayMenuState::Achievements => {}
         },
-        MenuNode::Settings(settings_node) => match settings_node {
-            SettingsNode::Root => {}
-            SettingsNode::Graphics => {}
-            SettingsNode::Audio => {}
-            SettingsNode::Controls => {}
+        MenuState::Settings(settings_node) => match settings_node {
+            SettingsMenuState::Root => {}
+            SettingsMenuState::Graphics => {}
+            SettingsMenuState::Audio => {}
+            SettingsMenuState::Controls => {}
         },
     }
 
-    let back_button = ui_builder
+    let mut back_button = ui_builder
         .create::<UiButton>(Val::Auto, Val::Auto)
         .with_text("Go back")
         .with_on_click(UiOnClick::new(|w, _| {
-            w.query::<&mut MenuNode>().single_mut(w).go_back();
+            w.resource_mut::<MenuState>().go_back();
         }));
+    back_button.ui_style.color = ui_builder.game_assets.colors.get(GameColor::Neutral);
+    back_button.ui_style.border_color = Some(
+        ui_builder
+            .game_assets
+            .colors
+            .get_content(GameColor::Neutral),
+    );
 
     commands.entity(container).with_children(|parent| {
         back_button.spawn(parent);
@@ -194,19 +203,19 @@ fn spawn_play_root(commands: &mut Commands, ui_builder: &mut UiBuilder, containe
             .create::<UiButton>(Val::Auto, Val::Auto)
             .with_text("Level select")
             .with_on_click(UiOnClick::new(move |w, _| {
-                *w.query::<&mut MenuNode>().single_mut(w) = MenuNode::Play(PlayNode::LevelSelect);
+                *w.resource_mut::<MenuState>() = MenuState::Play(PlayMenuState::LevelSelect);
             })),
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
             .with_text("Customize")
             .with_on_click(UiOnClick::new(move |w, _| {
-                *w.query::<&mut MenuNode>().single_mut(w) = MenuNode::Play(PlayNode::Customize);
+                *w.resource_mut::<MenuState>() = MenuState::Play(PlayMenuState::Customize);
             })),
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
             .with_text("Achievements")
             .with_on_click(UiOnClick::new(move |w, _| {
-                *w.query::<&mut MenuNode>().single_mut(w) = MenuNode::Play(PlayNode::Achievements);
+                *w.resource_mut::<MenuState>() = MenuState::Play(PlayMenuState::Achievements);
             })),
     ];
 
@@ -239,13 +248,13 @@ fn spawn_root(commands: &mut Commands, ui_builder: &mut UiBuilder, container: En
             .create::<UiButton>(Val::Auto, Val::Auto)
             .with_text("Play")
             .with_on_click(UiOnClick::new(move |w, _| {
-                *w.query::<&mut MenuNode>().single_mut(w) = MenuNode::Play(PlayNode::Root);
+                *w.resource_mut::<MenuState>() = MenuState::Play(PlayMenuState::Root);
             })),
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
             .with_text("Settings")
             .with_on_click(UiOnClick::new(|w, _| {
-                *w.query::<&mut MenuNode>().single_mut(w) = MenuNode::Settings(SettingsNode::Root);
+                *w.resource_mut::<MenuState>() = MenuState::Settings(SettingsMenuState::Root);
             })),
     ];
 
