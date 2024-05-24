@@ -110,8 +110,8 @@ pub mod components {
 
     pub trait UiComponent: Sized {
         fn spawn<'a>(&'a self, parent: &'a mut ChildBuilder) -> EntityCommands;
-        fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, z: f32) -> Self;
-        fn new_auto<'a>(builder: &'a mut UiBuilder, z: f32) -> Self {
+        fn new(builder: &mut UiBuilder, width: Val, height: Val, z: f32) -> Self;
+        fn new_auto(builder: &mut UiBuilder, z: f32) -> Self {
             Self::new(builder, Val::Auto, Val::Auto, z)
         }
     }
@@ -219,7 +219,7 @@ pub mod components {
 
         fn spawn<'a>(&'a self, parent: &'a mut ChildBuilder) -> EntityCommands {
             let node = (self.node)(self.style.clone());
-            let ui_node = (self.ui_node)(self.ui_style.clone());
+            let ui_node = (self.ui_node)(self.ui_style);
             parent.spawn((node, ui_node))
         }
     }
@@ -320,8 +320,8 @@ pub mod components {
         fn spawn<'a>(&'a self, parent: &'a mut ChildBuilder) -> EntityCommands {
             let mut spawn = parent.spawn((self.button)(
                 self.style.clone(),
-                self.ui_style.clone(),
-                self.on_click.clone(),
+                self.ui_style,
+                self.on_click,
             ));
             spawn.with_children(|parent| {
                 parent.spawn((self.text_node)(self.text.clone(), self.text_style.clone()));
@@ -358,7 +358,7 @@ pub mod components {
             ))
         }
 
-        fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
+        fn new(builder: &mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
             Self {
                 text: Default::default(),
                 style: Style {
@@ -369,7 +369,11 @@ pub mod components {
                     align_items: AlignItems::Center,
                     ..Default::default()
                 },
-                text_style: builder.text_styles.get(FontType::default(), FontSize::default(), Color::default()),
+                text_style: builder.text_styles.get(
+                    FontType::default(),
+                    FontSize::default(),
+                    Color::default(),
+                ),
                 text_node: Box::new(|text, style, text_style| TextBundle {
                     text: Text::from_section(text, text_style),
                     style,

@@ -131,7 +131,7 @@ fn spawn_lose_screen(commands: &mut Commands, ui_builder: &mut UiBuilder) {
     let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
     let container: UiContainer = ui_builder
         .create::<UiContainer>(Val::Auto, Val::Auto)
-        .with_game_color(GameColor::Error, &ui_builder);
+        .with_game_color(GameColor::Error, ui_builder);
     let text = ui_builder
         .create_auto::<UiText>()
         .with_text("You lost!")
@@ -150,12 +150,12 @@ fn spawn_lose_screen(commands: &mut Commands, ui_builder: &mut UiBuilder) {
             .create::<UiButton>(Val::Auto, Val::Auto)
             .with_text("Retry")
             .with_on_click(UiOnClick::restart_game())
-            .with_game_color(GameColor::Warning, &ui_builder),
+            .with_game_color(GameColor::Warning, ui_builder),
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
             .with_text("Back to main menu")
             .with_on_click(UiOnClick::back_to_main_menu())
-            .with_game_color(GameColor::Neutral, &ui_builder),
+            .with_game_color(GameColor::Neutral, ui_builder),
     ];
 
     base.spawn(commands)
@@ -174,7 +174,7 @@ fn spawn_win_screen(commands: &mut Commands, ui_builder: &mut UiBuilder, game_da
     let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
     let container = ui_builder
         .create::<UiContainer>(Val::Auto, Val::Auto)
-        .with_game_color(GameColor::Success, &ui_builder);
+        .with_game_color(GameColor::Success, ui_builder);
     let win_text = ui_builder
         .create_auto::<UiText>()
         .with_text("You won!")
@@ -232,7 +232,7 @@ fn spawn_win_screen(commands: &mut Commands, ui_builder: &mut UiBuilder, game_da
             .create::<UiButton>(Val::Auto, Val::Auto)
             .with_text("Back to main menu")
             .with_on_click(UiOnClick::back_to_main_menu())
-            .with_game_color(GameColor::Neutral, &ui_builder),
+            .with_game_color(GameColor::Neutral, ui_builder),
     ];
     let star_index = game_data
         .level
@@ -343,7 +343,7 @@ impl UiComponent for ShotsComponent {
         parent
     }
 
-    fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, z: f32) -> Self {
+    fn new(builder: &mut UiBuilder, width: Val, height: Val, z: f32) -> Self {
         let (Val::Px(w), Val::Px(h)) = (width, height) else {
             panic!("Width and height must be in pixels");
         };
@@ -469,11 +469,9 @@ fn update_score_tracker(
     };
     let mut progress_state = progress_state.single_mut();
     let meta = level.get_meta();
-    let thresholds = vec![
-        (meta.star_point_thresholds[0] as i32, 0.35),
+    let thresholds = [(meta.star_point_thresholds[0] as i32, 0.35),
         (meta.star_point_thresholds[1] as i32, 0.65),
-        (meta.star_point_thresholds[2] as i32, 1.0),
-    ];
+        (meta.star_point_thresholds[2] as i32, 1.0)];
     match game_data.points {
         points if points < thresholds[0].0 => {
             let add = points as f32 / thresholds[0].0 as f32 * thresholds[0].1;
@@ -521,7 +519,7 @@ impl UiComponent for ScoreComponent {
             self.content.spawn(parent).with_children(|parent| {
                 self.star_container
                     .spawn(parent)
-                    .insert((ProgressStars, self.state.clone()))
+                    .insert((ProgressStars, self.state))
                     .with_children(|parent| {
                         for star in &self.stars {
                             star.spawn(parent);
@@ -536,7 +534,7 @@ impl UiComponent for ScoreComponent {
         parent
     }
 
-    fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
+    fn new(builder: &mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
         let mut base = builder.create::<UiContainer>(width, height);
         base.style.justify_content = JustifyContent::End;
         base.style.flex_direction = FlexDirection::Row;
@@ -607,10 +605,10 @@ impl UiComponent for ProgressComponent {
         parent
     }
 
-    fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
+    fn new(builder: &mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
         let mut base: UiContainer = builder
             .create::<UiContainer>(width, Val::Auto)
-            .with_game_color(GameColor::Base, &builder);
+            .with_game_color(GameColor::Base, builder);
         base.ui_style.border_radius = 2.0;
         base.ui_style.border_width = 4.0 * builder.window().scale_factor();
         base.style.align_items = AlignItems::Start;
@@ -643,7 +641,7 @@ impl UiComponent for StarComponent {
         parent.spawn((self.node)(self.count))
     }
 
-    fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, z: f32) -> Self {
+    fn new(builder: &mut UiBuilder, width: Val, height: Val, z: f32) -> Self {
         let star = builder.game_assets.get_image(GameImage::Star);
         Self {
             count: 0,
@@ -714,7 +712,7 @@ fn spawn_pause_button(commands: &mut Commands, ui_builder: &mut UiBuilder) {
     let mut pause_button = ui_builder
         .create::<UiButton>(Val::Px(a), Val::Px(a))
         .with_on_click(UiOnClick::pause_game())
-        .with_game_color(GameColor::Warning, &ui_builder);
+        .with_game_color(GameColor::Warning, ui_builder);
     pause_button.style.min_width = Val::Auto;
     pause_button.style.padding = UiRect::all(Val::Px(0.0));
     pause_button.style.margin = UiRect::all(Val::Px(0.0));

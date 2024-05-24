@@ -136,13 +136,19 @@ fn update_menu(
 }
 
 fn spawn_level_select(commands: &mut Commands, ui_builder: &mut UiBuilder, container: Entity) {
-    let title = ui_builder.create_auto::<UiText>().with_text("Level select").with_text_style(
-        ui_builder.text_styles.get(
-            FontType::Regular,
-            FontSize::Large,
-            ui_builder.game_assets.colors.get_content(GameColor::Primary),
-        ),
-    );
+    let title = ui_builder
+        .create_auto::<UiText>()
+        .with_text("Level select")
+        .with_text_style(
+            ui_builder.text_styles.get(
+                FontType::Regular,
+                FontSize::Large,
+                ui_builder
+                    .game_assets
+                    .colors
+                    .get_content(GameColor::Primary),
+            ),
+        );
     let buttons = vec![ui_builder
         .create::<UiButton>(Val::Auto, Val::Auto)
         .with_text("Demo")
@@ -160,13 +166,19 @@ fn spawn_level_select(commands: &mut Commands, ui_builder: &mut UiBuilder, conta
 }
 
 fn spawn_play_root(commands: &mut Commands, ui_builder: &mut UiBuilder, container: Entity) {
-    let title = ui_builder.create_auto::<UiText>().with_text("Play").with_text_style(
-        ui_builder.text_styles.get(
-            FontType::Regular,
-            FontSize::Large,
-            ui_builder.game_assets.colors.get_content(GameColor::Primary),
-        ),
-    );
+    let title = ui_builder
+        .create_auto::<UiText>()
+        .with_text("Play")
+        .with_text_style(
+            ui_builder.text_styles.get(
+                FontType::Regular,
+                FontSize::Large,
+                ui_builder
+                    .game_assets
+                    .colors
+                    .get_content(GameColor::Primary),
+            ),
+        );
     let buttons = vec![
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
@@ -197,13 +209,19 @@ fn spawn_play_root(commands: &mut Commands, ui_builder: &mut UiBuilder, containe
 }
 
 fn spawn_root(commands: &mut Commands, ui_builder: &mut UiBuilder, container: Entity) {
-    let title = ui_builder.create_auto::<UiText>().with_text("Main menu").with_text_style(
-        ui_builder.text_styles.get(
-            FontType::Regular,
-            FontSize::Large,
-            ui_builder.game_assets.colors.get_content(GameColor::Primary),
-        ),
-    );
+    let title = ui_builder
+        .create_auto::<UiText>()
+        .with_text("Main menu")
+        .with_text_style(
+            ui_builder.text_styles.get(
+                FontType::Regular,
+                FontSize::Large,
+                ui_builder
+                    .game_assets
+                    .colors
+                    .get_content(GameColor::Primary),
+            ),
+        );
     let buttons = vec![
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
@@ -232,7 +250,7 @@ fn set_in_game(world: &mut World, _context: &UiCommandContext<UiPointerEventData
     let game_assets = world.get_resource::<GameAssets>().unwrap();
     let text_styles = world.get_resource::<TextStyles>().unwrap();
 
-    if !game_assets.loaded(&asset_server) || !text_styles.loaded(&asset_server) {
+    if !game_assets.loaded(asset_server) || !text_styles.loaded(asset_server) {
         return;
     }
     world
