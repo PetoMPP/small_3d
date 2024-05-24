@@ -14,6 +14,7 @@ pub enum GameState {
     #[default]
     Playing,
     Paused,
+    Finished,
 }
 
 pub struct GamePlugin;

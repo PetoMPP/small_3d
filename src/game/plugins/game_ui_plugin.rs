@@ -29,10 +29,9 @@ impl Plugin for GameUiPlugin {
                     switch_ui.run_if(state_changed::<GameState>),
                     (
                         update_score_tracker.run_if(resource_changed::<GameData>),
-                        set_aim_circle_visibility
-                            .run_if(in_state(GameState::Playing))
-                            .before(render_ui),
+                        set_aim_circle_visibility.before(render_ui),
                     )
+                        .run_if(in_state(GameState::Playing))
                         .after(switch_ui),
                 )
                     .run_if(in_state(AppState::InGame)),
@@ -63,6 +62,13 @@ fn switch_ui(
     match **game_state {
         GameState::Paused => spawn_pause_menu(&mut commands, &mut ui_builder),
         GameState::Playing => spawn_game_menu(&mut commands, &mut ui_builder, &mut game_data),
+        GameState::Finished => {
+            if game_data.result.unwrap() {
+                spawn_win_screen(&mut commands, &mut ui_builder, &game_data);
+            } else {
+                spawn_lose_screen(&mut commands, &mut ui_builder);
+            }
+        }
     }
 }
 
@@ -121,9 +127,169 @@ impl GameUiOnClick for UiOnClick {
     }
 }
 
+fn spawn_lose_screen(commands: &mut Commands, ui_builder: &mut UiBuilder) {
+    let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
+    base.style.flex_direction = FlexDirection::Column;
+    let container: UiContainer = ui_builder
+        .create::<UiContainer>(Val::Auto, Val::Auto)
+        .with_game_color(GameColor::Error, &ui_builder);
+    let text = TextBundle {
+        text: Text::from_section(
+            "You lost!",
+            ui_builder
+                .text_styles
+                .get(FontType::Bold, FontSize::XLarge, Color::WHITE),
+        )
+        .with_justify(JustifyText::Center),
+        style: Style {
+            padding: UiRect::all(Val::Px(20.0 * ui_builder.window().scale_factor())),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let buttons = vec![
+        ui_builder
+            .create::<UiButton>(Val::Auto, Val::Auto)
+            .with_text("Retry")
+            .with_on_click(UiOnClick::restart_game())
+            .with_game_color(GameColor::Warning, &ui_builder),
+        ui_builder
+            .create::<UiButton>(Val::Auto, Val::Auto)
+            .with_text("Back to main menu")
+            .with_on_click(UiOnClick::back_to_main_menu())
+            .with_game_color(GameColor::Neutral, &ui_builder),
+    ];
+
+    base.spawn(commands)
+        .insert(PlayingElement)
+        .with_children(|parent| {
+            container.spawn(parent).with_children(|parent| {
+                parent.spawn(text);
+                for button in buttons {
+                    button.spawn(parent);
+                }
+            });
+        });
+}
+
+fn spawn_win_screen(commands: &mut Commands, ui_builder: &mut UiBuilder, game_data: &GameData) {
+    let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
+    base.style.flex_direction = FlexDirection::Column;
+    let container = ui_builder
+        .create::<UiContainer>(Val::Auto, Val::Auto)
+        .with_game_color(GameColor::Success, &ui_builder);
+    let win_text = TextBundle {
+        text: Text::from_section(
+            "You won!",
+            ui_builder
+                .text_styles
+                .get(FontType::Bold, FontSize::XLarge, Color::WHITE),
+        )
+        .with_justify(JustifyText::Center),
+        style: Style {
+            padding: UiRect::axes(
+                Val::Px(20.0 * ui_builder.window().scale_factor()),
+                Val::Px(40.0 * ui_builder.window().scale_factor()),
+            ),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let score_text = TextBundle {
+        text: Text::from_section(
+            format!("Score: {}", game_data.points),
+            ui_builder
+                .text_styles
+                .get(FontType::Regular, FontSize::Large, Color::WHITE),
+        )
+        .with_justify(JustifyText::Center),
+        style: Style {
+            padding: UiRect::all(Val::Px(20.0 * ui_builder.window().scale_factor())),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut star_container: UiContainer = ui_builder.create(Val::Percent(100.0), Val::Auto);
+    star_container.ui_style = UiStyle::empty();
+    star_container.style.padding.left /= 2.0;
+    star_container.style.padding.right /= 2.0;
+    star_container.style.flex_direction = FlexDirection::Row;
+    star_container.style.justify_content = JustifyContent::SpaceBetween;
+    let mut stars = Vec::new();
+    for _ in 0..3 {
+        stars.push(
+            ui_builder
+                .create::<StarComponent>(
+                    Val::Px(100.0 * ui_builder.window().scale_factor()),
+                    Val::Px(100.0 * ui_builder.window().scale_factor()),
+                )
+                .with_count(1),
+        );
+    }
+    let buttons = vec![
+        ui_builder
+            .create::<UiButton>(Val::Auto, Val::Auto)
+            .with_text("Next level")
+            .with_on_click(UiOnClick::restart_game()), // TODO: change when levels are implemented
+        ui_builder
+            .create::<UiButton>(Val::Auto, Val::Auto)
+            .with_text("Retry")
+            .with_on_click(UiOnClick::restart_game()),
+        ui_builder
+            .create::<UiButton>(Val::Auto, Val::Auto)
+            .with_text("Back to main menu")
+            .with_on_click(UiOnClick::back_to_main_menu())
+            .with_game_color(GameColor::Neutral, &ui_builder),
+    ];
+    let star_index = game_data
+        .level
+        .unwrap()
+        .get_meta()
+        .star_point_thresholds
+        .into_iter()
+        .position(|threshold| game_data.points < threshold as i32)
+        .unwrap_or(3);
+
+    base.spawn(commands)
+        .insert(PlayingElement)
+        .with_children(|parent| {
+            container.spawn(parent).with_children(|parent| {
+                parent.spawn(win_text);
+                parent.spawn(score_text);
+                star_container.spawn(parent).with_children(|parent| {
+                    for (i, star) in stars.into_iter().enumerate() {
+                        star.spawn(parent).insert(UiState((i < star_index) as u64));
+                    }
+                });
+                for button in buttons {
+                    button.spawn(parent);
+                }
+            });
+        });
+}
+
 fn spawn_pause_menu(commands: &mut Commands, ui_builder: &mut UiBuilder) {
     let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
     let menu: UiContainer = ui_builder.create(Val::Auto, Val::Auto);
+    let text = TextBundle {
+        text: Text::from_section(
+            "Pause menu",
+            ui_builder.text_styles.get(
+                FontType::Regular,
+                FontSize::Large,
+                ui_builder
+                    .game_assets
+                    .colors
+                    .get_content(GameColor::Primary),
+            ),
+        )
+        .with_justify(JustifyText::Center),
+        style: Style {
+            padding: UiRect::all(Val::Px(20.0 * ui_builder.window().scale_factor())),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
     let buttons = vec![
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
@@ -143,6 +309,7 @@ fn spawn_pause_menu(commands: &mut Commands, ui_builder: &mut UiBuilder) {
         .insert(PausedElement)
         .with_children(|c| {
             menu.spawn(c).with_children(|m| {
+                m.spawn(text);
                 for button in buttons {
                     button.spawn(m);
                 }
@@ -383,19 +550,19 @@ impl UiComponent for ScoreComponent {
     }
 
     fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
-        let mut base: UiContainer = builder.create(width, height);
+        let mut base = builder.create::<UiContainer>(width, height);
         base.style.justify_content = JustifyContent::End;
         base.style.flex_direction = FlexDirection::Row;
-        base.ui_style.border_color = Some(Color::BLACK);
         let mut content: UiContainer = builder.create(height * 2.25, height / 2.0);
+        content.style.padding = UiRect::all(Val::Px(8.0 * builder.window().scale_factor()));
         content.ui_style = UiStyle::empty();
-        let progress = builder.create::<ProgressComponent>(Val::Percent(90.0), height / 4.0);
-        let mut star_container: UiContainer = builder.create(Val::Percent(80.0), height / 2.0);
+        let progress = builder.create::<ProgressComponent>(Val::Percent(100.0), height / 4.0);
+        let mut star_container: UiContainer = builder.create(Val::Percent(100.0), height / 2.0);
         star_container.ui_style = UiStyle::empty();
         star_container.style.flex_direction = FlexDirection::Row;
         star_container.style.justify_content = JustifyContent::SpaceBetween;
         star_container.style.padding = UiRect {
-            left: Val::Px(42.0),
+            left: Val::Px(96.0),
             right: Val::Px(-16.0),
             ..star_container.style.padding
         };
@@ -423,7 +590,10 @@ impl UiComponent for ScoreComponent {
                 text: Text::from_section(s.to_string(), text_style.clone()),
                 style: Style {
                     padding: UiRect::all(height / 10.0),
-                    margin: UiRect::horizontal(height / 10.0),
+                    margin: UiRect {
+                        left: height / 5.0,
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
                 ..Default::default()
@@ -451,9 +621,11 @@ impl UiComponent for ProgressComponent {
     }
 
     fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
-        let mut base: UiContainer = builder.create(width, Val::Auto);
-        base.ui_style.border_radius = 0.0;
-        base.ui_style.border_width = 2.0 * builder.window().scale_factor();
+        let mut base: UiContainer = builder
+            .create::<UiContainer>(width, Val::Auto)
+            .with_game_color(GameColor::Base, &builder);
+        base.ui_style.border_radius = 2.0;
+        base.ui_style.border_width = 4.0 * builder.window().scale_factor();
         base.style.align_items = AlignItems::Start;
         base.style.padding = UiRect::all(Val::Px(2.0 * builder.window().scale_factor()));
 
@@ -506,7 +678,8 @@ impl UiComponent for StarComponent {
                             let step = size.xy() * Vec2::new(0.3, 0.1);
                             let start = step - step * (count + 1) as f32 / 2.0;
                             painter.translate(start.extend(0.0));
-                            for _ in 0..count {
+                            painter.rect(size.xy());
+                            for _ in 1..count {
                                 painter.translate(step.extend(0.0));
                                 painter.rect(size.xy());
                             }
@@ -551,14 +724,9 @@ fn spawn_pause_button(commands: &mut Commands, ui_builder: &mut UiBuilder) {
     base.style.justify_content = JustifyContent::End;
     let mut pause_button = ui_builder
         .create::<UiButton>(Val::Px(a), Val::Px(a))
-        .with_on_click(UiOnClick::pause_game());
-    pause_button.ui_style.color = ui_builder.game_assets.colors.get(GameColor::Warning);
-    pause_button.ui_style.border_color = Some(
-        ui_builder
-            .game_assets
-            .colors
-            .get_content(GameColor::Warning),
-    );
+        .with_on_click(UiOnClick::pause_game())
+        .with_game_color(GameColor::Warning, &ui_builder);
+    pause_button.style.min_width = Val::Auto;
     pause_button.style.padding = UiRect::all(Val::Px(0.0));
     pause_button.style.margin = UiRect::all(Val::Px(0.0));
     let pause_inner = (

@@ -32,6 +32,7 @@ pub struct GameData {
     pub level: Option<GameLevel>,
     pub shots: u32,
     pub points: i32,
+    pub result: Option<bool>,
 }
 
 #[derive(Event)]
@@ -55,8 +56,8 @@ impl Plugin for GameScenePlugin {
                     initialize_game_scene_components,
                     reward_points_on_collision,
                     reload_scene,
-                    reload_on_bounds_collision,
-                    reload_on_pass_through_goal,
+                    lose_on_pass_through_bounds,
+                    win_on_pass_through_goal,
                 )
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::Playing)),
@@ -421,12 +422,13 @@ fn reward_points_on_collision(
 #[derive(Component, Clone, Copy)]
 struct GameBounds;
 
-fn reload_on_bounds_collision(
-    mut set_game_level: EventWriter<SetGameLevel>,
+fn lose_on_pass_through_bounds(
     rapier_context: ResMut<RapierContext>,
-    game_data: Res<GameData>,
+    mut game_data: ResMut<GameData>,
+    mut next_state: ResMut<NextState<GameState>>,
     player: Query<Entity, With<Player>>,
     bounds: Query<Entity, With<GameBounds>>,
+    mut started: Local<bool>,
 ) {
     let Some(player_entity) = player.iter().next() else {
         return;
@@ -435,20 +437,34 @@ fn reload_on_bounds_collision(
         return;
     };
 
-    if rapier_context
-        .intersection_pair(player_entity, bounds_entity)
-        .unwrap_or_default()
-    {
-        set_game_level.send(SetGameLevel(game_data.level));
+    match *started {
+        true => {
+            if !rapier_context
+                .intersection_pair(player_entity, bounds_entity)
+                .unwrap_or_default()
+            {
+                *started = false;
+                game_data.result = Some(false);
+                next_state.set(GameState::Finished);
+            }
+        }
+        false => {
+            if rapier_context
+                .intersection_pair(player_entity, bounds_entity)
+                .unwrap_or_default()
+            {
+                *started = true;
+            }
+        }
     }
 }
 
 #[derive(Component, Clone, Copy)]
 struct GameGoal(Vec2);
 
-fn reload_on_pass_through_goal(
-    mut set_game_level: EventWriter<SetGameLevel>,
-    game_data: Res<GameData>,
+fn win_on_pass_through_goal(
+    mut game_data: ResMut<GameData>,
+    mut next_state: ResMut<NextState<GameState>>,
     player: Query<(Entity, &Transform), With<Player>>,
     goals: Query<(Entity, &GlobalTransform, &GameGoal)>,
     rapier_context: Res<RapierContext>,
@@ -491,7 +507,8 @@ fn reload_on_pass_through_goal(
     let movement =
         (player_transform.translation.xy() - goal_transform.translation().xy()).normalize();
     if movement.x * goal.0.x >= 0.0 && movement.y * goal.0.y >= 0.0 {
-        set_game_level.send(SetGameLevel(game_data.level));
+        game_data.result = Some(true);
+        next_state.set(GameState::Finished);
     }
     *started = None;
 }
