@@ -24,8 +24,8 @@ Check it out on https://petompp.github.io/small_3d/ (Best played on mobile)
   - [ ] Loading screen
   - [ ] Login/Register screen?
   - [ ] Main menu
-      - [ ] Play
-          - [ ] Level select
+      - [x] Play
+          - [x] Level select
           - [ ] Customize
               - [ ] Speedmeter and other utilities
           - [ ] Shop?
@@ -42,7 +42,7 @@ Check it out on https://petompp.github.io/small_3d/ (Best played on mobile)
           - [x] Reset level
           - [x] Resume
           - [x] Back to menu
-          - [ ] Level end screen
+          - [x] Level end screen
   - [ ] Sounds
       - [ ] Background music
       - [ ] Collision sounds

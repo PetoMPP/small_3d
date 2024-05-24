@@ -75,11 +75,11 @@ pub struct GameLevelMeta {
     pub star_point_thresholds: [u32; 3],
 }
 
-impl Into<GameData> for GameLevel {
-    fn into(self) -> GameData {
-        let meta = self.get_meta();
+impl From<GameLevel> for GameData {
+    fn from(val: GameLevel) -> Self {
+        let meta = val.get_meta();
         GameData {
-            level: Some(self),
+            level: Some(val),
             shots: meta.shots,
             ..Default::default()
         }
@@ -135,7 +135,7 @@ impl GameColors {
         data_raw.into_iter().try_for_each(|(k, v)| {
             let mut colors = HashMap::default();
             v.into_iter().try_for_each(|(k, (c, cc))| {
-                let (c, cc) = (Color::hex(&c)?, Color::hex(&cc)?);
+                let (c, cc) = (Color::hex(c)?, Color::hex(cc)?);
                 colors.insert(k, (c, cc));
                 Result::<_, HexColorError>::Ok(())
             })?;
@@ -337,7 +337,7 @@ impl FromWorld for GameAssets {
             asset_server.load("models/arrow.glb#Material0"),
         );
         let mut images = HashMap::default();
-        let (x, y) = GameImage::get_current_splash_ratio(&window);
+        let (x, y) = GameImage::get_current_splash_ratio(window);
         let splash = format!("images/splash_{}x{}.png", x, y);
         images.insert(GameImage::Splash, asset_server.load(splash));
         images.insert(GameImage::Player, asset_server.load("images/player.png"));

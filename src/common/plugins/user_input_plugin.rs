@@ -72,7 +72,7 @@ fn handle_input_state_touch(
         .collect::<Vec<_>>()
         .into_iter()
     {
-        if let None = touch_input.get_pressed(*touch) {
+        if touch_input.get_pressed(*touch).is_none() {
             user_input.release(touch);
             user_input_position.set(*touch, None);
         }

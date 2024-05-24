@@ -5,13 +5,23 @@ pub fn contains_point(rect: Rect, corner_radius: f32, point: Vec2) -> bool {
     let width = rect.width() - corner_radius * 2.0;
     let height = rect.height() - corner_radius * 2.0;
     if width > 0.0 {
-        let vert_rect = Rect::new(rect.min.x + corner_radius, rect.min.y, rect.max.x - corner_radius, rect.max.y);
+        let vert_rect = Rect::new(
+            rect.min.x + corner_radius,
+            rect.min.y,
+            rect.max.x - corner_radius,
+            rect.max.y,
+        );
         if vert_rect.contains(point) {
             return true;
         }
     }
     if height > 0.0 {
-        let horz_rect = Rect::new(rect.min.x, rect.min.y + corner_radius, rect.max.x, rect.max.y - corner_radius);
+        let horz_rect = Rect::new(
+            rect.min.x,
+            rect.min.y + corner_radius,
+            rect.max.x,
+            rect.max.y - corner_radius,
+        );
         if horz_rect.contains(point) {
             return true;
         }
@@ -68,24 +78,50 @@ mod tests {
         let corner_radius = 10.0;
 
         // test corners
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(0.0, 0.0)), false);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(100.0, 0.0)), false);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(0.0, 100.0)), false);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(100.0, 100.0)), false);
+        assert!(
+            !contains_point(rect, corner_radius, Vec2::new(0.0, 0.0))
+        );
+        assert!(
+            !contains_point(rect, corner_radius, Vec2::new(100.0, 0.0))
+        );
+        assert!(
+            !contains_point(rect, corner_radius, Vec2::new(0.0, 100.0))
+        );
+        assert!(
+            !contains_point(rect, corner_radius, Vec2::new(100.0, 100.0))
+        );
 
         // test edges
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(50.0, 0.0)), true);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(0.0, 50.0)), true);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(50.0, 100.0)), true);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(100.0, 50.0)), true);
+        assert!(
+            contains_point(rect, corner_radius, Vec2::new(50.0, 0.0))
+        );
+        assert!(
+            contains_point(rect, corner_radius, Vec2::new(0.0, 50.0))
+        );
+        assert!(
+            contains_point(rect, corner_radius, Vec2::new(50.0, 100.0))
+        );
+        assert!(
+            contains_point(rect, corner_radius, Vec2::new(100.0, 50.0))
+        );
 
         // test inside
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(50.0, 50.0)), true);
+        assert!(
+            contains_point(rect, corner_radius, Vec2::new(50.0, 50.0))
+        );
 
         // test outside
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(101.0, 50.0)), false);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(50.0, 101.0)), false);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(-1.0, 50.0)), false);
-        assert_eq!(contains_point(rect, corner_radius, Vec2::new(50.0, -1.0)), false);
+        assert!(
+            !contains_point(rect, corner_radius, Vec2::new(101.0, 50.0))
+        );
+        assert!(
+            !contains_point(rect, corner_radius, Vec2::new(50.0, 101.0))
+        );
+        assert!(
+            !contains_point(rect, corner_radius, Vec2::new(-1.0, 50.0))
+        );
+        assert!(
+            !contains_point(rect, corner_radius, Vec2::new(50.0, -1.0))
+        );
     }
 }
