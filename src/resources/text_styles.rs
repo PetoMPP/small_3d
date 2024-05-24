@@ -49,7 +49,9 @@ impl FromWorld for TextStyles {
 }
 
 #[allow(dead_code)]
+#[derive(Default)]
 pub enum FontType {
+    #[default]
     Regular,
     Bold,
     Italic,
@@ -57,8 +59,10 @@ pub enum FontType {
 }
 
 #[allow(dead_code)]
+#[derive(Default)]
 pub enum FontSize {
     Small,
+    #[default]
     Medium,
     Large,
     XLarge,

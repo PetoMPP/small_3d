@@ -1,6 +1,6 @@
 use super::plugins::loading_view_plugin::LoadingViewPlugin;
 use crate::common::plugins::ui_plugin::components::{
-    UiBase, UiBuilder, UiButton, UiComponent, UiContainer,
+    UiBase, UiBuilder, UiButton, UiComponent, UiContainer, UiText,
 };
 use crate::common::plugins::ui_plugin::{UiCommandContext, UiOnClick, UiPointerEventData};
 use crate::game::game_plugin::GameState;
@@ -70,29 +70,20 @@ struct MenuContainer;
 fn init_main_menu(mut commands: Commands, mut ui_builder: UiBuilder, mut state: ResMut<MenuState>) {
     // TODO: Background scene'
     let base = UiBase::new(ui_builder.game_assets.colors.get(GameColor::Base));
-    let title = TextBundle {
-        text: Text::from_section(
-            "Small 3D",
-            ui_builder.text_styles.get(
-                FontType::Bold,
-                FontSize::XLarge,
-                ui_builder.game_assets.colors.get_content(GameColor::Base),
-            ),
-        )
-        .with_justify(JustifyText::Center),
-        style: Style {
-            position_type: PositionType::Absolute,
-            top: Val::Vh(10.0),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
+    let title = ui_builder
+        .create_auto::<UiText>()
+        .with_text("Small 3D")
+        .with_text_style(ui_builder.text_styles.get(
+            FontType::Bold,
+            FontSize::XLarge,
+            ui_builder.game_assets.colors.get_content(GameColor::Base),
+        ));
     let menu: UiContainer = ui_builder.create(Val::Auto, Val::Auto);
 
     base.spawn(&mut commands)
         .insert(MenuNode)
         .with_children(|parent| {
-            parent.spawn(title);
+            title.spawn(parent);
             menu.spawn(parent).insert(MenuContainer);
         });
 
@@ -145,21 +136,13 @@ fn update_menu(
 }
 
 fn spawn_level_select(commands: &mut Commands, ui_builder: &mut UiBuilder, container: Entity) {
-    let title = TextBundle {
-        text: Text::from_section(
-            "Level select",
-            ui_builder.text_styles.get(
-                FontType::Regular,
-                FontSize::Large,
-                ui_builder
-                    .game_assets
-                    .colors
-                    .get_content(GameColor::Primary),
-            ),
-        )
-        .with_justify(JustifyText::Center),
-        ..Default::default()
-    };
+    let title = ui_builder.create_auto::<UiText>().with_text("Level select").with_text_style(
+        ui_builder.text_styles.get(
+            FontType::Regular,
+            FontSize::Large,
+            ui_builder.game_assets.colors.get_content(GameColor::Primary),
+        ),
+    );
     let buttons = vec![ui_builder
         .create::<UiButton>(Val::Auto, Val::Auto)
         .with_text("Demo")
@@ -169,7 +152,7 @@ fn spawn_level_select(commands: &mut Commands, ui_builder: &mut UiBuilder, conta
         }))];
 
     commands.entity(container).with_children(|parent| {
-        parent.spawn(title);
+        title.spawn(parent);
         for button in buttons.into_iter() {
             button.spawn(parent);
         }
@@ -177,21 +160,13 @@ fn spawn_level_select(commands: &mut Commands, ui_builder: &mut UiBuilder, conta
 }
 
 fn spawn_play_root(commands: &mut Commands, ui_builder: &mut UiBuilder, container: Entity) {
-    let title = TextBundle {
-        text: Text::from_section(
-            "Play",
-            ui_builder.text_styles.get(
-                FontType::Regular,
-                FontSize::Large,
-                ui_builder
-                    .game_assets
-                    .colors
-                    .get_content(GameColor::Primary),
-            ),
-        )
-        .with_justify(JustifyText::Center),
-        ..Default::default()
-    };
+    let title = ui_builder.create_auto::<UiText>().with_text("Play").with_text_style(
+        ui_builder.text_styles.get(
+            FontType::Regular,
+            FontSize::Large,
+            ui_builder.game_assets.colors.get_content(GameColor::Primary),
+        ),
+    );
     let buttons = vec![
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
@@ -214,7 +189,7 @@ fn spawn_play_root(commands: &mut Commands, ui_builder: &mut UiBuilder, containe
     ];
 
     commands.entity(container).with_children(|parent| {
-        parent.spawn(title);
+        title.spawn(parent);
         for button in buttons.into_iter() {
             button.spawn(parent);
         }
@@ -222,21 +197,13 @@ fn spawn_play_root(commands: &mut Commands, ui_builder: &mut UiBuilder, containe
 }
 
 fn spawn_root(commands: &mut Commands, ui_builder: &mut UiBuilder, container: Entity) {
-    let title = TextBundle {
-        text: Text::from_section(
-            "Main menu",
-            ui_builder.text_styles.get(
-                FontType::Regular,
-                FontSize::Large,
-                ui_builder
-                    .game_assets
-                    .colors
-                    .get_content(GameColor::Primary),
-            ),
-        )
-        .with_justify(JustifyText::Center),
-        ..Default::default()
-    };
+    let title = ui_builder.create_auto::<UiText>().with_text("Main menu").with_text_style(
+        ui_builder.text_styles.get(
+            FontType::Regular,
+            FontSize::Large,
+            ui_builder.game_assets.colors.get_content(GameColor::Primary),
+        ),
+    );
     let buttons = vec![
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
@@ -253,7 +220,7 @@ fn spawn_root(commands: &mut Commands, ui_builder: &mut UiBuilder, container: En
     ];
 
     commands.entity(container).with_children(|parent| {
-        parent.spawn(title);
+        title.spawn(parent);
         for button in buttons.into_iter() {
             button.spawn(parent);
         }
