@@ -108,9 +108,12 @@ pub mod components {
     };
     use bevy::ecs::system::{EntityCommands, SystemParam};
 
-    pub trait UiComponent {
+    pub trait UiComponent: Sized {
         fn spawn<'a>(&'a self, parent: &'a mut ChildBuilder) -> EntityCommands;
         fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, z: f32) -> Self;
+        fn new_auto<'a>(builder: &'a mut UiBuilder, z: f32) -> Self {
+            Self::new(builder, Val::Auto, Val::Auto, z)
+        }
     }
 
     #[derive(SystemParam)]
@@ -125,6 +128,11 @@ pub mod components {
         pub fn create<C: UiComponent>(&mut self, width: Val, height: Val) -> C {
             let z = self.get_next_z();
             C::new(self, width, height, z)
+        }
+
+        pub fn create_auto<C: UiComponent>(&mut self) -> C {
+            let z = self.get_next_z();
+            C::new_auto(self, z)
         }
 
         pub fn get_next_z(&mut self) -> f32 {
@@ -152,6 +160,7 @@ pub mod components {
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     position_type: PositionType::Absolute,
+                    flex_direction: FlexDirection::Column,
                     ..Default::default()
                 },
             }
@@ -318,6 +327,55 @@ pub mod components {
                 parent.spawn((self.text_node)(self.text.clone(), self.text_style.clone()));
             });
             spawn
+        }
+    }
+
+    pub struct UiText {
+        pub text: String,
+        pub style: Style,
+        pub text_style: TextStyle,
+        text_node: Box<dyn Fn(String, Style, TextStyle) -> TextBundle>,
+    }
+
+    impl UiText {
+        pub fn with_text(mut self, text: impl Into<String>) -> Self {
+            self.text = text.into();
+            self
+        }
+
+        pub fn with_text_style(mut self, text_style: TextStyle) -> Self {
+            self.text_style = text_style;
+            self
+        }
+    }
+
+    impl UiComponent for UiText {
+        fn spawn<'a>(&'a self, parent: &'a mut ChildBuilder) -> EntityCommands {
+            parent.spawn((self.text_node)(
+                self.text.clone(),
+                self.style.clone(),
+                self.text_style.clone(),
+            ))
+        }
+
+        fn new<'a>(builder: &'a mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
+            Self {
+                text: Default::default(),
+                style: Style {
+                    width,
+                    height,
+                    padding: UiRect::all(Val::Px(20.0 * builder.window.single().scale_factor())),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..Default::default()
+                },
+                text_style: builder.text_styles.get(FontType::default(), FontSize::default(), Color::default()),
+                text_node: Box::new(|text, style, text_style| TextBundle {
+                    text: Text::from_section(text, text_style),
+                    style,
+                    ..Default::default()
+                }),
+            }
         }
     }
 }

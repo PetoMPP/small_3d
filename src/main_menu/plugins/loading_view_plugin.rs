@@ -1,5 +1,8 @@
 use crate::{
-    common::plugins::ui_plugin::{styles, UiOnClick, UiOnClickBundle},
+    common::plugins::ui_plugin::{
+        components::{UiBuilder, UiComponent, UiText},
+        styles, UiOnClick, UiOnClickBundle,
+    },
     resources::{
         game_assets::{GameAssets, GameImage},
         loadable::Loadable,
@@ -48,11 +51,7 @@ impl LoadingCommands for UiOnClick {
     }
 }
 
-fn init_loading_view(
-    mut commands: Commands,
-    text_styles: Res<TextStyles>,
-    game_assets: Res<GameAssets>,
-) {
+fn init_loading_view(mut commands: Commands, mut ui_builder: UiBuilder) {
     let container = (
         styles::container_node(Val::Percent(100.0), Val::Percent(100.0)),
         LoadingNode,
@@ -62,7 +61,7 @@ fn init_loading_view(
         },
     );
     let splash = ImageBundle {
-        image: UiImage::new(game_assets.get_image(GameImage::Splash)),
+        image: UiImage::new(ui_builder.game_assets.get_image(GameImage::Splash)),
         style: Style {
             align_items: AlignItems::End,
             padding: UiRect::vertical(Val::Percent(15.0)),
@@ -70,15 +69,15 @@ fn init_loading_view(
         },
         ..Default::default()
     };
-    let text = (
-        TextBundle {
-            text: Text::from_section(
-                "Loading..",
-                text_styles.get(FontType::Bold, FontSize::Large, Color::WHITE),
-            )
-            .with_justify(JustifyText::Center),
-            ..Default::default()
-        },
+    let text = ui_builder
+        .create_auto::<UiText>()
+        .with_text("Loading..")
+        .with_text_style(ui_builder.text_styles.get(
+            FontType::Bold,
+            FontSize::XLarge,
+            Color::WHITE,
+        ));
+    let text_components = (
         LoadingText,
         Animator::<Transform>::new(
             Tween::new(
@@ -96,7 +95,7 @@ fn init_loading_view(
 
     commands.spawn(container).with_children(|parent| {
         parent.spawn(splash).with_children(|root| {
-            root.spawn(text);
+            text.spawn(root).insert(text_components);
         });
     });
 }

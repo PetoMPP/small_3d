@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     common::plugins::ui_plugin::{
-        components::{UiBase, UiBuilder, UiButton, UiComponent, UiContainer},
+        components::{UiBase, UiBuilder, UiButton, UiComponent, UiContainer, UiText},
         render_ui, styles, UiNode, UiOnClick, UiOnClickBundle, UiState, UiStyle,
     },
     game::game_plugin::GameState,
@@ -128,25 +128,23 @@ impl GameUiOnClick for UiOnClick {
 }
 
 fn spawn_lose_screen(commands: &mut Commands, ui_builder: &mut UiBuilder) {
-    let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
-    base.style.flex_direction = FlexDirection::Column;
+    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
     let container: UiContainer = ui_builder
         .create::<UiContainer>(Val::Auto, Val::Auto)
         .with_game_color(GameColor::Error, &ui_builder);
-    let text = TextBundle {
-        text: Text::from_section(
-            "You lost!",
-            ui_builder
-                .text_styles
-                .get(FontType::Bold, FontSize::XLarge, Color::WHITE),
-        )
-        .with_justify(JustifyText::Center),
-        style: Style {
-            padding: UiRect::all(Val::Px(20.0 * ui_builder.window().scale_factor())),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
+    let text = ui_builder
+        .create_auto::<UiText>()
+        .with_text("You lost!")
+        .with_text_style(
+            ui_builder.text_styles.get(
+                FontType::Bold,
+                FontSize::XLarge,
+                ui_builder
+                    .game_assets
+                    .colors
+                    .get_content(GameColor::Warning),
+            ),
+        );
     let buttons = vec![
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
@@ -164,7 +162,7 @@ fn spawn_lose_screen(commands: &mut Commands, ui_builder: &mut UiBuilder) {
         .insert(PlayingElement)
         .with_children(|parent| {
             container.spawn(parent).with_children(|parent| {
-                parent.spawn(text);
+                text.spawn(parent);
                 for button in buttons {
                     button.spawn(parent);
                 }
@@ -173,42 +171,37 @@ fn spawn_lose_screen(commands: &mut Commands, ui_builder: &mut UiBuilder) {
 }
 
 fn spawn_win_screen(commands: &mut Commands, ui_builder: &mut UiBuilder, game_data: &GameData) {
-    let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
-    base.style.flex_direction = FlexDirection::Column;
+    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
     let container = ui_builder
         .create::<UiContainer>(Val::Auto, Val::Auto)
         .with_game_color(GameColor::Success, &ui_builder);
-    let win_text = TextBundle {
-        text: Text::from_section(
-            "You won!",
-            ui_builder
-                .text_styles
-                .get(FontType::Bold, FontSize::XLarge, Color::WHITE),
-        )
-        .with_justify(JustifyText::Center),
-        style: Style {
-            padding: UiRect::axes(
-                Val::Px(20.0 * ui_builder.window().scale_factor()),
-                Val::Px(40.0 * ui_builder.window().scale_factor()),
+    let win_text = ui_builder
+        .create_auto::<UiText>()
+        .with_text("You won!")
+        .with_text_style(
+            ui_builder.text_styles.get(
+                FontType::Bold,
+                FontSize::XLarge,
+                ui_builder
+                    .game_assets
+                    .colors
+                    .get_content(GameColor::Success),
             ),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-    let score_text = TextBundle {
-        text: Text::from_section(
-            format!("Score: {}", game_data.points),
-            ui_builder
-                .text_styles
-                .get(FontType::Regular, FontSize::Large, Color::WHITE),
-        )
-        .with_justify(JustifyText::Center),
-        style: Style {
-            padding: UiRect::all(Val::Px(20.0 * ui_builder.window().scale_factor())),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
+        );
+    let score_text = ui_builder
+        .create_auto::<UiText>()
+        .with_text(format!("Score: {}", game_data.points))
+        .with_text_style(
+            ui_builder.text_styles.get(
+                FontType::Regular,
+                FontSize::Large,
+                ui_builder
+                    .game_assets
+                    .colors
+                    .get_content(GameColor::Success),
+            ),
+        );
+
     let mut star_container: UiContainer = ui_builder.create(Val::Percent(100.0), Val::Auto);
     star_container.ui_style = UiStyle::empty();
     star_container.style.padding.left /= 2.0;
@@ -254,8 +247,8 @@ fn spawn_win_screen(commands: &mut Commands, ui_builder: &mut UiBuilder, game_da
         .insert(PlayingElement)
         .with_children(|parent| {
             container.spawn(parent).with_children(|parent| {
-                parent.spawn(win_text);
-                parent.spawn(score_text);
+                win_text.spawn(parent);
+                score_text.spawn(parent);
                 star_container.spawn(parent).with_children(|parent| {
                     for (i, star) in stars.into_iter().enumerate() {
                         star.spawn(parent).insert(UiState((i < star_index) as u64));
@@ -271,25 +264,19 @@ fn spawn_win_screen(commands: &mut Commands, ui_builder: &mut UiBuilder, game_da
 fn spawn_pause_menu(commands: &mut Commands, ui_builder: &mut UiBuilder) {
     let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
     let menu: UiContainer = ui_builder.create(Val::Auto, Val::Auto);
-    let text = TextBundle {
-        text: Text::from_section(
-            "Pause menu",
+    let text = ui_builder
+        .create_auto::<UiText>()
+        .with_text("Paused")
+        .with_text_style(
             ui_builder.text_styles.get(
                 FontType::Regular,
                 FontSize::Large,
                 ui_builder
                     .game_assets
                     .colors
-                    .get_content(GameColor::Primary),
+                    .get_content(GameColor::Warning),
             ),
-        )
-        .with_justify(JustifyText::Center),
-        style: Style {
-            padding: UiRect::all(Val::Px(20.0 * ui_builder.window().scale_factor())),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
+        );
     let buttons = vec![
         ui_builder
             .create::<UiButton>(Val::Auto, Val::Auto)
@@ -309,7 +296,7 @@ fn spawn_pause_menu(commands: &mut Commands, ui_builder: &mut UiBuilder) {
         .insert(PausedElement)
         .with_children(|c| {
             menu.spawn(c).with_children(|m| {
-                m.spawn(text);
+                text.spawn(m);
                 for button in buttons {
                     button.spawn(m);
                 }
@@ -703,6 +690,7 @@ fn spawn_score_tracker(
     let a = window.height().min(window.width()) / 6.0;
     let offset = a / 10.0;
     let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.0));
+    base.style.flex_direction = FlexDirection::Row;
     base.style.align_items = AlignItems::Start;
     base.style.padding = UiRect::all(Val::Px(offset));
 
@@ -719,6 +707,7 @@ fn spawn_pause_button(commands: &mut Commands, ui_builder: &mut UiBuilder) {
     let a = window.height().min(window.width()) / 6.0;
     let offset = a / 10.0;
     let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.0));
+    base.style.flex_direction = FlexDirection::Row;
     base.style.padding = UiRect::all(Val::Px(offset));
     base.style.align_items = AlignItems::Start;
     base.style.justify_content = JustifyContent::End;
