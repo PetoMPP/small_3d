@@ -131,19 +131,13 @@ fn update_menu(
         },
     }
 
-    let mut back_button = ui_builder
+    let back_button = ui_builder
         .create::<UiButton>(Val::Auto, Val::Auto)
         .with_text("Go back")
         .with_on_click(UiOnClick::new(|w, _| {
             w.resource_mut::<MenuState>().go_back();
-        }));
-    back_button.ui_style.color = ui_builder.game_assets.colors.get(GameColor::Neutral);
-    back_button.ui_style.border_color = Some(
-        ui_builder
-            .game_assets
-            .colors
-            .get_content(GameColor::Neutral),
-    );
+        }))
+        .with_game_color(GameColor::Neutral, &ui_builder);
 
     commands.entity(container).with_children(|parent| {
         back_button.spawn(parent);

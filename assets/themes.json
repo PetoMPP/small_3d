@@ -1,24 +1,24 @@
 {
     "Default": {
         "Primary": [
-            "#7800ff",
-            "#dfd9ff"
+            "#dfd9ff",
+            "#7800ff"
         ],
         "Secondary": [
-            "#0000ff",
-            "#c6dbff"
+            "#c6dbff",
+            "#0000ff"
         ],
         "Accent": [
-            "#ff7e00",
-            "#160600"
+            "#04bcd9",
+            "#001016"
         ],
         "Neutral": [
-            "#0f2131",
-            "#c9ced2"
+            "#c9ced2",
+            "#0f2131"
         ],
         "Base": [
-            "#151615",
-            "#fbfdf5"
+            "#fbfdf5",
+            "#151615"
         ],
         "Info": [
             "#0096f3",

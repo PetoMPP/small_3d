@@ -81,7 +81,7 @@ impl Into<GameData> for GameLevel {
         GameData {
             level: Some(self),
             shots: meta.shots,
-            points: 0,
+            ..Default::default()
         }
     }
 }

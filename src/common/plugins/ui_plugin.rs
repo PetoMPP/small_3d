@@ -191,7 +191,7 @@ pub mod components {
                     height,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    padding: UiRect::all(Val::Px(16.0 * window.scale_factor())),
+                    padding: UiRect::all(Val::Px(32.0 * window.scale_factor())),
                     flex_direction: FlexDirection::Column,
                     ..Default::default()
                 },
@@ -212,6 +212,15 @@ pub mod components {
             let node = (self.node)(self.style.clone());
             let ui_node = (self.ui_node)(self.ui_style.clone());
             parent.spawn((node, ui_node))
+        }
+    }
+
+    impl UiContainer {
+        pub fn with_game_color(mut self, game_color: GameColor, ui_builder: &UiBuilder) -> Self {
+            self.ui_style.color = ui_builder.game_assets.colors.get(game_color);
+            self.ui_style.border_color =
+                Some(ui_builder.game_assets.colors.get_content(game_color));
+            self
         }
     }
 
@@ -236,6 +245,14 @@ pub mod components {
             self.on_click = on_click;
             self
         }
+
+        pub fn with_game_color(mut self, game_color: GameColor, ui_builder: &UiBuilder) -> Self {
+            self.ui_style.color = ui_builder.game_assets.colors.get(game_color);
+            self.ui_style.border_color =
+                Some(ui_builder.game_assets.colors.get_content(game_color));
+            self.text_style.color = ui_builder.game_assets.colors.get_content(game_color);
+            self
+        }
     }
 
     impl UiComponent for UiButton {
@@ -247,6 +264,9 @@ pub mod components {
                     height,
                     padding: UiRect::all(Val::Px(12.0 * builder.window.single().scale_factor())),
                     margin: UiRect::all(Val::Px(12.0 * builder.window.single().scale_factor())),
+                    min_width: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
                     ..Default::default()
                 },
                 ui_style: UiStyle {

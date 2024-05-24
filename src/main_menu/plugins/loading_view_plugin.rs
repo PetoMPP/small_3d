@@ -1,7 +1,7 @@
 use crate::{
     common::plugins::ui_plugin::{styles, UiOnClick, UiOnClickBundle},
     resources::{
-        game_assets::{GameAssets, GameColor, GameImage},
+        game_assets::{GameAssets, GameImage},
         loadable::Loadable,
         text_styles::{FontSize, FontType, TextStyles},
     },
@@ -74,11 +74,7 @@ fn init_loading_view(
         TextBundle {
             text: Text::from_section(
                 "Loading..",
-                text_styles.get(
-                    FontType::Bold,
-                    FontSize::Large,
-                    game_assets.colors.get_content(GameColor::Base),
-                ),
+                text_styles.get(FontType::Bold, FontSize::Large, Color::WHITE),
             )
             .with_justify(JustifyText::Center),
             ..Default::default()
