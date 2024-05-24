@@ -142,7 +142,9 @@ impl GameColors {
             result.data.insert(k, colors);
             Result::<_, HexColorError>::Ok(())
         })?;
-        result.theme = result.data.keys().next().ok_or("Empty themes!")?.clone();
+        result
+            .theme
+            .clone_from(result.data.keys().next().ok_or("Empty themes!")?);
         log!("GameColors: {:?}", result);
 
         Ok(result)
