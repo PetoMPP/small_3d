@@ -469,9 +469,11 @@ fn update_score_tracker(
     };
     let mut progress_state = progress_state.single_mut();
     let meta = level.get_meta();
-    let thresholds = [(meta.star_point_thresholds[0] as i32, 0.35),
+    let thresholds = [
+        (meta.star_point_thresholds[0] as i32, 0.35),
         (meta.star_point_thresholds[1] as i32, 0.65),
-        (meta.star_point_thresholds[2] as i32, 1.0)];
+        (meta.star_point_thresholds[2] as i32, 1.0),
+    ];
     match game_data.points {
         points if points < thresholds[0].0 => {
             let add = points as f32 / thresholds[0].0 as f32 * thresholds[0].1;
