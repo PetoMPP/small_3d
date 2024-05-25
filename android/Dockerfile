@@ -17,7 +17,7 @@ RUN rustup target add aarch64-linux-android
 RUN rustup target add armv7-linux-androideabi
 RUN cargo install cargo-apk
 
-RUN apt-get update && apt-get install zip
+RUN apt-get update && apt-get -y install zip
 
 ENV ANDROID_HOME=/usr/lib/android-sdk
 ENV ANDROID_NDK_ROOT=/usr/lib/android-sdk/ndk/26.2.11394342
