@@ -57,8 +57,9 @@ jobs:
 
       - run: cargo apk build --release --package ${{github.event.repository.name}}_apk
 
-      - uses: softprops/action-gh-release@v2
+      - uses: ncipollo/release-action@v1
         with:
+          commit: ${{github.ref}}
+          tag: "0.1.0-pre"
           prerelease: true
-          generate_release_notes: true
-          files: target/release/apk/{{github.event.repository.name}}.apk
+          artifacts: target/release/apk/{{github.event.repository.name}}.apk
