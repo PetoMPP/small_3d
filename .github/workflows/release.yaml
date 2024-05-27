@@ -16,11 +16,16 @@ on:
 
 
 jobs:
-  release-wasm:
+  checkout:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+
+  release-wasm:
+    needs: checkout
+    runs-on: ubuntu-latest
+    steps:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -28,9 +33,40 @@ jobs:
       - uses: jetli/trunk-action@v0.1.0
       - uses: jetli/wasm-bindgen-action@v0.1.0
 
+      - run: cd ${{github.event.repository.name}}_wasm
+
       - run: trunk build --release --public-url /${{github.event.repository.name}}/
       
       - uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
+
+  release-apk:
+    needs: checkout
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+          
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi
+
+      - run: cargo install --git https://github.com/PetoMPP/cargo-apk.git
+
+      - run: cargo apk build --release
+
+      - uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Development Build"
+          files: target/release/apk/{{github.event.repository.name}}.apk
