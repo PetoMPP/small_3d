@@ -27,9 +27,9 @@ jobs:
       - uses: jetli/trunk-action@v0.1.0
       - uses: jetli/wasm-bindgen-action@v0.1.0
 
-      - run: cd ${{github.event.repository.name}}_wasm
-
-      - run: trunk build --release --public-url /${{github.event.repository.name}}/
+      - run: |
+          cd ${{github.event.repository.name}}_wasm
+          trunk build --release --public-url /${{github.event.repository.name}}/
       
       - uses: peaceiris/actions-gh-pages@v3
         with:
@@ -55,7 +55,7 @@ jobs:
 
       - run: cargo install --git https://github.com/PetoMPP/cargo-apk.git
 
-      - run: cargo apk build --release
+      - run: cargo apk build --release --package ${{github.event.repository.name}}_apk
 
       - uses: softprops/action-gh-release@v2
         with:
