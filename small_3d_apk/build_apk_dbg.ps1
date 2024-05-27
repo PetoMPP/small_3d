@@ -1,0 +1,1 @@
+docker run --rm -v "${PWD}:/app" -v cargo_index:/usr/local/cargo -t small_3d_apk cargo apk build --package small_3d_apk

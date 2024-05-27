@@ -1,0 +1,3 @@
+[watch]
+watch = ["../small_3d_game/", "./"]
+ignore = ["../small_3d_game/.blender/", "../small_3d_game/.gimp/"]
