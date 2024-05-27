@@ -1,0 +1,7 @@
+[package]
+name = "small_3d_wasm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+small_3d_game = { path = "../small_3d_game" }

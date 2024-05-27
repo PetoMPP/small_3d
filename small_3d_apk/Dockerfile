@@ -15,7 +15,7 @@ RUN /usr/lib/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "p
 RUN rustup update
 RUN rustup target add aarch64-linux-android
 RUN rustup target add armv7-linux-androideabi
-RUN cargo install cargo-apk
+RUN cargo install --git https://github.com/PetoMPP/cargo-apk.git
 
 RUN apt-get update && apt-get -y install zip
 

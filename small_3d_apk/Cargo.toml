@@ -1,0 +1,25 @@
+[package]
+name = "small_3d_apk"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate_type = ["staticlib", "cdylib"]
+
+[package.metadata.android]
+package = "com.petompp.small_3d"
+build_targets = ["armv7-linux-androideabi"]
+assets = "../small_3d_game/assets"
+apk_name = "small_3d"
+strip = "strip"
+
+[package.metadata.android.sdk]
+target_sdk_version = 34
+
+[package.metadata.android.signing.release]
+path = "release.keystore"
+keystore_password = "android"
+
+[dependencies]
+small_3d_game = { path = "../small_3d_game" }
+bevy = "0.13.1"

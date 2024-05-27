@@ -1,0 +1,22 @@
+[package]
+name = "small_3d_game"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.13.1"
+bevy-inspector-egui = "0.23"
+bevy_rapier3d = "0.25"
+bevy_tweening = "0.10"
+bevy_vector_shapes = "0.7"
+rand = "0.8"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo = "0.11"
+web-sys = "0.3"
+
+[lints.clippy]
+type-complexity = "allow"

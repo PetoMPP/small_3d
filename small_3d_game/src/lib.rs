@@ -32,8 +32,7 @@ pub enum AppState {
     InGame,
 }
 
-#[bevy_main]
-pub fn main() {
+pub fn run() {
     app().run();
 }
 
