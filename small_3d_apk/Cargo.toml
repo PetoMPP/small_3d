@@ -22,4 +22,4 @@ keystore_password = "android"
 
 [dependencies]
 small_3d_game = { path = "../small_3d_game" }
-bevy = "0.13.1"
+bevy = { workspace = true }
