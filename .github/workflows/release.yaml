@@ -18,6 +18,9 @@ on:
 jobs:
   release-wasm:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{github.event.repository.name}}_wasm
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -27,9 +30,7 @@ jobs:
       - uses: jetli/trunk-action@v0.1.0
       - uses: jetli/wasm-bindgen-action@v0.1.0
 
-      - run: |
-          cd ${{github.event.repository.name}}_wasm
-          trunk build --release --public-url /${{github.event.repository.name}}/
+      - run: trunk build --release --public-url /${{github.event.repository.name}}/
       
       - uses: peaceiris/actions-gh-pages@v3
         with:
@@ -57,9 +58,7 @@ jobs:
 
       - run: cargo apk build --release --package ${{github.event.repository.name}}_apk
 
-      - uses: ncipollo/release-action@v1
+      - uses: softprops/action-gh-release@v2
         with:
-          commit: ${{github.ref}}
-          tag: "0.1.0-pre"
           prerelease: true
-          artifacts: target/release/apk/{{github.event.repository.name}}.apk
+          files: target/release/apk/{{github.event.repository.name}}.apk
