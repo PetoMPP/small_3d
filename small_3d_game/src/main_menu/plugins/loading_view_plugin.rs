@@ -1,7 +1,7 @@
 use crate::{
     common::plugins::ui_plugin::{
         components::{UiBuilder, UiComponent, UiText},
-        styles, UiOnClick, UiOnClickBundle,
+        UiOnClick, UiOnClickBundle,
     },
     resources::{
         game_assets::{GameAssets, GameImage},
@@ -53,7 +53,16 @@ impl LoadingCommands for UiOnClick {
 
 fn init_loading_view(mut commands: Commands, mut ui_builder: UiBuilder) {
     let container = (
-        styles::container_node(Val::Percent(100.0), Val::Percent(100.0)),
+        NodeBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
         LoadingNode,
         UiOnClickBundle {
             ui_on_click: UiOnClick::loaded(),
@@ -63,9 +72,12 @@ fn init_loading_view(mut commands: Commands, mut ui_builder: UiBuilder) {
     let splash = ImageBundle {
         image: UiImage::new(ui_builder.game_assets.get_image(GameImage::Splash)),
         style: Style {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            justify_content: JustifyContent::Center,
             align_items: AlignItems::End,
             padding: UiRect::vertical(Val::Percent(15.0)),
-            ..styles::container(Val::Percent(100.0), Val::Percent(100.0))
+            ..Default::default()
         },
         ..Default::default()
     };

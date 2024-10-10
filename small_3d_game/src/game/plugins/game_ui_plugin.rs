@@ -5,9 +5,10 @@ use super::{
 use crate::{
     common::plugins::ui_plugin::{
         components::{UiBase, UiBuilder, UiButton, UiComponent, UiContainer, UiText},
-        render_ui, styles, UiNode, UiOnClick, UiOnClickBundle, UiState, UiStyle,
+        render_ui, UiNode, UiOnClick, UiOnClickBundle, UiState, UiStyle,
     },
     game::game_plugin::GameState,
+    log,
     resources::{
         game_assets::{GameColor, GameImage},
         text_styles::{FontSize, FontType},
@@ -128,7 +129,7 @@ impl GameUiOnClick for UiOnClick {
 }
 
 fn spawn_lose_screen(commands: &mut Commands, ui_builder: &mut UiBuilder) {
-    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
+    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5), ui_builder);
     let container: UiContainer = ui_builder
         .create::<UiContainer>(Val::Auto, Val::Auto)
         .with_game_color(GameColor::Error, ui_builder);
@@ -171,7 +172,7 @@ fn spawn_lose_screen(commands: &mut Commands, ui_builder: &mut UiBuilder) {
 }
 
 fn spawn_win_screen(commands: &mut Commands, ui_builder: &mut UiBuilder, game_data: &GameData) {
-    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
+    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5), ui_builder);
     let container = ui_builder
         .create::<UiContainer>(Val::Auto, Val::Auto)
         .with_game_color(GameColor::Success, ui_builder);
@@ -262,7 +263,7 @@ fn spawn_win_screen(commands: &mut Commands, ui_builder: &mut UiBuilder, game_da
 }
 
 fn spawn_pause_menu(commands: &mut Commands, ui_builder: &mut UiBuilder) {
-    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5));
+    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.5), ui_builder);
     let menu: UiContainer = ui_builder.create(Val::Auto, Val::Auto);
     let text = ui_builder
         .create_auto::<UiText>()
@@ -315,9 +316,13 @@ fn spawn_game_menu(
     ui_builder: &mut UiBuilder,
     game_data: &mut ResMut<GameData>,
 ) {
-    spawn_aim_circle(commands, ui_builder);
-    spawn_pause_button(commands, ui_builder);
-    spawn_score_tracker(commands, ui_builder, game_data);
+    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.0), ui_builder)
+        .spawn(commands)
+        .insert(PlayingElement)
+        .id();
+    spawn_aim_circle(base, commands, ui_builder);
+    spawn_pause_button(base, commands, ui_builder);
+    spawn_score_tracker(base, commands, ui_builder, game_data);
 }
 
 #[derive(Component)]
@@ -327,15 +332,15 @@ pub struct AimCircle;
 pub struct ShotsTracker;
 
 struct ShotsComponent {
-    pub inner_ratio: f32,
-    shots: Box<dyn Fn(f32) -> (NodeBundle, AimCircle, UiNode, UiState, ShotsTracker)>,
-    circle: Box<dyn Fn(f32, f32) -> (NodeBundle, UiOnClickBundle, UiNode)>,
+    // pub inner_ratio: f32,
+    shots: Box<dyn Fn() -> (NodeBundle, AimCircle, UiNode, UiState, ShotsTracker)>,
+    circle: Box<dyn Fn(f32) -> (NodeBundle, UiOnClickBundle, UiNode)>,
 }
 
 impl UiComponent for ShotsComponent {
     fn spawn<'a>(&'a self, parent: &'a mut ChildBuilder) -> EntityCommands {
-        let shots = (self.shots)(self.inner_ratio);
-        let circle = (self.circle)(self.inner_ratio, shots.2.z + 0.5);
+        let shots = (self.shots)();
+        let circle = (self.circle)(shots.2.z + 0.5);
         let mut parent = parent.spawn(shots);
         parent.with_children(|parent| {
             parent.spawn(circle);
@@ -343,23 +348,40 @@ impl UiComponent for ShotsComponent {
         parent
     }
 
-    fn new(builder: &mut UiBuilder, width: Val, height: Val, z: f32) -> Self {
-        let (Val::Px(w), Val::Px(h)) = (width, height) else {
-            panic!("Width and height must be in pixels");
-        };
-        let radius = w.min(h) / 2.0;
+    fn new(builder: &mut UiBuilder, width: Val, _height: Val, z: f32) -> Self {
+        // let (Val::Px(w), Val::Px(h)) = (width, height) else {
+        //     panic!("Width and height must be in pixels");
+        // };
+        // let radius = w.min(h) / 2.0;
+        const RATIO: f32 = 0.6;
         let texture = builder.game_assets.get_image(GameImage::Player);
         Self {
-            inner_ratio: 0.6,
-            shots: Box::new(move |ratio| {
+            // inner_ratio: 0.6,
+            shots: Box::new(move || {
                 let texture = texture.clone();
-                let inner_radius = radius * ratio;
+                // let inner_radius = radius * ratio;
                 (
-                    styles::container_node(width, height),
+                    NodeBundle {
+                        background_color: Color::RED.with_a(0.5).into(),
+                        style: Style {
+                            width,
+                            height: Val::Auto,
+                            aspect_ratio: Some(1.0),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            // display: Display::Grid,
+                            grid_column: GridPlacement::start(3),
+                            grid_row: GridPlacement::start(2),
+                            padding: UiRect::all(Val::Percent(20.0)),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
                     AimCircle,
                     UiNode {
                         paint: Box::new(move |painter, size, _, state| {
-                            let radius = (radius - inner_radius) / 2.0;
+                            let radius = size.x.min(size.y) / 2.0;
+                            let radius = (radius - radius * RATIO) / 2.0;
                             let paint_radius = radius * 0.8;
                             painter.color = Color::WHITE;
                             painter.texture = Some(texture.clone());
@@ -381,13 +403,23 @@ impl UiComponent for ShotsComponent {
                     ShotsTracker,
                 )
             }),
-            circle: Box::new(move |ratio, z| {
-                let inner_radius = radius * ratio;
+            circle: Box::new(move |z| {
+                // let inner_radius = radius * ratio;
                 (
-                    styles::container_node(
-                        Val::Px(inner_radius * 2.0),
-                        Val::Px(inner_radius * 2.0),
-                    ),
+                    NodeBundle {
+                        background_color: Color::LIME_GREEN.with_a(0.5).into(),
+                        style: Style {
+                            width: Val::Percent(100.0),
+                            height: Val::Percent(100.0),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            // display: Display::Grid,
+                            // grid_row: GridPlacement::start(3),
+                            // grid_column: GridPlacement::start(2),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
                     UiOnClickBundle {
                         ui_on_click: UiOnClick::start_aim(),
                         ..Default::default()
@@ -395,6 +427,7 @@ impl UiComponent for ShotsComponent {
                     UiNode {
                         paint: Box::new(|painter, size, _, _| {
                             let radius = size.x.min(size.y) / 2.0;
+                            log!("Circle: {}, {}", size, radius);
                             painter.color = Color::WHITE.with_a(0.9);
                             painter.hollow = true;
                             painter.thickness = 0.8;
@@ -407,7 +440,7 @@ impl UiComponent for ShotsComponent {
                                 painter.arc(radius, angle, angle + STEP / 2.7);
                             }
                         }),
-                        corner_radius: radius,
+                        corner_radius: 0.0,
                         z,
                     },
                 )
@@ -416,17 +449,12 @@ impl UiComponent for ShotsComponent {
     }
 }
 
-pub fn spawn_aim_circle(commands: &mut Commands, ui_builder: &mut UiBuilder) {
-    let window = ui_builder.window();
-    let radius = window.height().min(window.width()) / 4.0;
-    let base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.0));
-    let shots: ShotsComponent = ui_builder.create(Val::Px(radius * 2.0), Val::Px(radius * 2.0));
+pub fn spawn_aim_circle(base: Entity, commands: &mut Commands, ui_builder: &mut UiBuilder) {
+    let shots: ShotsComponent = ui_builder.create_full();
 
-    base.spawn(commands)
-        .insert(PlayingElement)
-        .with_children(|parent| {
-            shots.spawn(parent);
-        });
+    commands.entity(base).with_children(|parent| {
+        shots.spawn(parent);
+    });
 }
 
 fn set_aim_circle_visibility(
@@ -505,9 +533,8 @@ fn update_score_tracker(
 
 struct ScoreComponent {
     pub state: UiState,
-    pub score: i32,
     base: UiContainer,
-    score_text: Box<dyn Fn(i32) -> TextBundle>,
+    score_text: UiText,
     content: UiContainer,
     progress: ProgressComponent,
     star_container: UiContainer,
@@ -529,23 +556,23 @@ impl UiComponent for ScoreComponent {
                     });
                 self.progress.spawn(parent);
             });
-            parent
-                .spawn((self.score_text)(self.score))
-                .insert(ScoreTracker);
+            self.score_text.spawn(parent).insert(ScoreTracker);
         });
         parent
     }
 
     fn new(builder: &mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
         let mut base = builder.create::<UiContainer>(width, height);
-        base.style.justify_content = JustifyContent::End;
-        base.style.flex_direction = FlexDirection::Row;
-        let mut content: UiContainer = builder.create(height * 2.25, height / 2.0);
-        content.style.padding = UiRect::all(Val::Px(8.0 * builder.window().scale_factor()));
+        base.style.margin = UiRect::all(Val::Px(builder.settings.base_spacing));
+        base.style.grid_column = GridPlacement::start_span(1, 4);
+        base.style.grid_template_columns = vec![GridTrack::auto(), GridTrack::auto()];
+        let mut content: UiContainer = builder.create_full();
+        // content.style.padding = UiRect::all(Val::Px(8.0 * builder.window().scale_factor()));
         content.ui_style = UiStyle::empty();
-        let progress = builder.create::<ProgressComponent>(Val::Percent(100.0), height / 4.0);
-        let mut star_container: UiContainer = builder.create(Val::Percent(100.0), height / 2.0);
+        let progress = builder.create_full::<ProgressComponent>();
+        let mut star_container: UiContainer = builder.create_full();
         star_container.ui_style = UiStyle::empty();
+        star_container.style.display = Display::Flex;
         star_container.style.flex_direction = FlexDirection::Row;
         star_container.style.justify_content = JustifyContent::SpaceBetween;
         star_container.style.padding = UiRect {
@@ -555,36 +582,24 @@ impl UiComponent for ScoreComponent {
         };
 
         let stars = vec![
-            builder
-                .create::<StarComponent>(height / 3.0, height / 3.0)
-                .with_count(1),
-            builder
-                .create::<StarComponent>(height / 3.0, height / 3.0)
-                .with_count(2),
-            builder
-                .create::<StarComponent>(height / 3.0, height / 3.0)
-                .with_count(3),
+            builder.create_full::<StarComponent>().with_count(1),
+            builder.create_full::<StarComponent>().with_count(2),
+            builder.create_full::<StarComponent>().with_count(3),
         ];
-        let text_style =
-            builder
-                .text_styles
-                .get(FontType::ItalicBold, FontSize::XLarge, Color::BLACK);
+        let mut score_text = builder
+            .create_auto::<UiText>()
+            .with_text("0")
+            .with_text_style(builder.text_styles.get(
+                FontType::ItalicBold,
+                FontSize::XLarge,
+                builder.game_assets.colors.get_content(GameColor::Primary),
+            ));
+        score_text.style.grid_column = GridPlacement::start(2);
+
         Self {
             state: UiState(0),
-            score: 0,
             base,
-            score_text: Box::new(move |s| TextBundle {
-                text: Text::from_section(s.to_string(), text_style.clone()),
-                style: Style {
-                    padding: UiRect::all(height / 10.0),
-                    margin: UiRect {
-                        left: height / 5.0,
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            }),
+            score_text,
             content,
             progress,
             star_container,
@@ -609,14 +624,14 @@ impl UiComponent for ProgressComponent {
 
     fn new(builder: &mut UiBuilder, width: Val, height: Val, _z: f32) -> Self {
         let mut base: UiContainer = builder
-            .create::<UiContainer>(width, Val::Auto)
+            .create::<UiContainer>(width, height)
             .with_game_color(GameColor::Base, builder);
         base.ui_style.border_radius = 2.0;
         base.ui_style.border_width = 4.0 * builder.window().scale_factor();
         base.style.align_items = AlignItems::Start;
         base.style.padding = UiRect::all(Val::Px(2.0 * builder.window().scale_factor()));
 
-        let mut progress_bar: UiContainer = builder.create(Val::Percent(0.0), height);
+        let mut progress_bar: UiContainer = builder.create(Val::Percent(0.0), Val::Percent(100.0));
         progress_bar.ui_style = UiStyle {
             color: builder.game_assets.colors.get(GameColor::Accent),
             ..UiStyle::empty()
@@ -643,14 +658,24 @@ impl UiComponent for StarComponent {
         parent.spawn((self.node)(self.count))
     }
 
-    fn new(builder: &mut UiBuilder, width: Val, height: Val, z: f32) -> Self {
+    fn new(builder: &mut UiBuilder, _width: Val, height: Val, z: f32) -> Self {
         let star = builder.game_assets.get_image(GameImage::Star);
         Self {
             count: 0,
             node: Box::new(move |count| {
                 let star = star.clone();
                 (
-                    styles::container_node(width, height),
+                    NodeBundle {
+                        style: Style {
+                            width: Val::Auto,
+                            height,
+                            aspect_ratio: Some(1.0),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
                     UiNode {
                         paint: Box::new(move |painter, size, _, state| {
                             if count == 0 {
@@ -681,45 +706,50 @@ impl UiComponent for StarComponent {
 }
 
 fn spawn_score_tracker(
+    base: Entity,
     commands: &mut Commands,
     ui_builder: &mut UiBuilder,
     game_data: &mut ResMut<GameData>,
 ) {
     game_data.set_changed(); // to trigger update
-    let window = ui_builder.window();
-    let a = window.height().min(window.width()) / 6.0;
-    let offset = a / 10.0;
-    let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.0));
-    base.style.flex_direction = FlexDirection::Row;
-    base.style.align_items = AlignItems::Start;
-    base.style.padding = UiRect::all(Val::Px(offset));
+                             // let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.0), ui_builder);
+                             // base.style.flex_direction = FlexDirection::Row;
+                             // base.style.align_items = AlignItems::Start;
+                             // base.style.padding = UiRect::all(Val::Px(offset));
 
-    let score: ScoreComponent = ui_builder.create(Val::Auto, Val::Px(a));
-    base.spawn(commands)
-        .insert(PlayingElement)
-        .with_children(|parent| {
-            score.spawn(parent);
-        });
+    let score: ScoreComponent = ui_builder.create_full();
+    commands.entity(base).with_children(|parent| {
+        score.spawn(parent);
+    });
 }
 
-fn spawn_pause_button(commands: &mut Commands, ui_builder: &mut UiBuilder) {
-    let window = ui_builder.window();
-    let a = window.height().min(window.width()) / 6.0;
-    let offset = a / 10.0;
-    let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.0));
-    base.style.flex_direction = FlexDirection::Row;
-    base.style.padding = UiRect::all(Val::Px(offset));
-    base.style.align_items = AlignItems::Start;
-    base.style.justify_content = JustifyContent::End;
+fn spawn_pause_button(base: Entity, commands: &mut Commands, ui_builder: &mut UiBuilder) {
+    // let mut base = UiBase::new(Color::rgba(0.0, 0.0, 0.0, 0.0), ui_builder);
+    // base.style.flex_direction = FlexDirection::Row;
+    // base.style.align_items = AlignItems::Start;
+    // base.style.justify_content = JustifyContent::End;
+    // base.style.justify_items = JustifyItems::End;
     let mut pause_button = ui_builder
-        .create::<UiButton>(Val::Px(a), Val::Px(a))
+        .create_full::<UiButton>()
         .with_on_click(UiOnClick::pause_game())
         .with_game_color(GameColor::Warning, ui_builder);
-    pause_button.style.min_width = Val::Auto;
-    pause_button.style.padding = UiRect::all(Val::Px(0.0));
-    pause_button.style.margin = UiRect::all(Val::Px(0.0));
+    pause_button.style.grid_column = GridPlacement::start(5);
+    pause_button.style.padding = UiRect {
+        top: Val::Px(ui_builder.settings.base_spacing * 2.0),
+        bottom: Val::Px(ui_builder.settings.base_spacing * 2.0),
+        ..pause_button.style.padding
+    };
     let pause_inner = (
-        styles::container_node(Val::Px(a), Val::Px(a)),
+        NodeBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
         UiNode {
             paint: Box::new(|painter, size, int, _| {
                 painter.transform.translation.z = size.z;
@@ -730,20 +760,18 @@ fn spawn_pause_button(commands: &mut Commands, ui_builder: &mut UiBuilder) {
                         _ => 1.0,
                     };
                 painter.translate(Vec3::new(size.x * -0.15, 0.0, 0.0));
-                painter.rect(Vec2::new(size.x * 0.1, size.y * 0.65));
+                painter.rect(Vec2::new(size.x * 0.1, size.y));
                 painter.translate(Vec3::new(size.x * 0.3, 0.0, 0.0));
-                painter.rect(Vec2::new(size.x * 0.1, size.y * 0.65));
+                painter.rect(Vec2::new(size.x * 0.1, size.y));
             }),
             z: ui_builder.get_next_z(),
             ..Default::default()
         },
     );
 
-    base.spawn(commands)
-        .insert(PlayingElement)
-        .with_children(|parent| {
-            pause_button.spawn(parent).with_children(|parent| {
-                parent.spawn(pause_inner);
-            });
+    commands.entity(base).with_children(|parent| {
+        pause_button.spawn(parent).with_children(|parent| {
+            parent.spawn(pause_inner);
         });
+    });
 }

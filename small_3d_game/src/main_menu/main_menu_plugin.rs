@@ -69,8 +69,11 @@ struct MenuContainer;
 
 fn init_main_menu(mut commands: Commands, mut ui_builder: UiBuilder, mut state: ResMut<MenuState>) {
     // TODO: Background scene'
-    let base = UiBase::new(ui_builder.game_assets.colors.get(GameColor::Base));
-    let title = ui_builder
+    let base = UiBase::new(
+        ui_builder.game_assets.colors.get(GameColor::Base),
+        &mut ui_builder,
+    );
+    let mut title = ui_builder
         .create_auto::<UiText>()
         .with_text("Small 3D")
         .with_text_style(ui_builder.text_styles.get(
@@ -78,7 +81,10 @@ fn init_main_menu(mut commands: Commands, mut ui_builder: UiBuilder, mut state: 
             FontSize::XLarge,
             ui_builder.game_assets.colors.get_content(GameColor::Base),
         ));
-    let menu: UiContainer = ui_builder.create(Val::Auto, Val::Auto);
+    title.style.grid_column = GridPlacement::span(5);
+    let mut menu: UiContainer = ui_builder.create_auto();
+    menu.style.grid_row = GridPlacement::start_span(2, 2);
+    menu.style.grid_column = GridPlacement::start_span(2, 3);
 
     base.spawn(&mut commands)
         .insert(MenuNode)

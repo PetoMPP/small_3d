@@ -1,3 +1,4 @@
+use self::components::*;
 use super::user_input_plugin::{UserInput, UserInputPosition};
 use crate::resources::inputs::Inputs;
 use bevy::{ecs::system::Command, prelude::*, ui::ui_focus_system, utils::HashSet};
@@ -116,11 +117,31 @@ pub mod components {
         }
     }
 
+    #[derive(Resource)]
+    pub struct UiSettings {
+        pub inner_height: f32,
+        pub base_width: f32,
+        pub base_spacing: f32,
+    }
+
+    impl FromWorld for UiSettings {
+        fn from_world(world: &mut World) -> Self {
+            let window = world.query::<&Window>().single(world);
+            let base = window.width().min(window.height());
+            Self {
+                inner_height: window.height() - base / 2.5,
+                base_width: base / 5.0,
+                base_spacing: base / 50.0,
+            }
+        }
+    }
+
     #[derive(SystemParam)]
     pub struct UiBuilder<'w, 's> {
         pub game_assets: Res<'w, GameAssets>,
         pub text_styles: Res<'w, TextStyles>,
         pub window: Query<'w, 's, &'static Window>,
+        pub settings: Res<'w, UiSettings>,
         z: Local<'s, f32>,
     }
 
@@ -135,6 +156,10 @@ pub mod components {
             C::new_auto(self, z)
         }
 
+        pub fn create_full<C: UiComponent>(&mut self) -> C {
+            Self::create(self, Val::Percent(100.0), Val::Percent(100.0))
+        }
+
         pub fn get_next_z(&mut self) -> f32 {
             *self.z += 1.0;
             *self.z
@@ -142,6 +167,15 @@ pub mod components {
 
         pub fn window(&self) -> &Window {
             self.window.single()
+        }
+
+        pub fn get_ui_style(&self, game_color: GameColor) -> UiStyle {
+            UiStyle {
+                color: self.game_assets.colors.get(game_color),
+                border_color: Some(self.game_assets.colors.get_content(game_color)),
+                border_radius: self.settings.base_spacing,
+                border_width: self.settings.base_spacing / 2.0,
+            }
         }
     }
 
@@ -151,16 +185,29 @@ pub mod components {
     }
 
     impl UiBase {
-        pub fn new(color: Color) -> Self {
+        pub fn new(color: Color, ui_builder: &mut UiBuilder) -> Self {
             Self {
                 color,
                 style: Style {
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
                     align_items: AlignItems::Center,
+                    justify_items: JustifyItems::Center,
+                    align_content: AlignContent::SpaceBetween,
                     justify_content: JustifyContent::Center,
                     position_type: PositionType::Absolute,
-                    flex_direction: FlexDirection::Column,
+                    display: Display::Grid,
+                    row_gap: Val::Px(ui_builder.settings.base_spacing),
+                    column_gap: Val::Px(ui_builder.settings.base_spacing),
+                    grid_template_columns: (1..=5)
+                        .into_iter()
+                        .map(|_| GridTrack::px(ui_builder.settings.base_width))
+                        .collect(),
+                    grid_template_rows: vec![
+                        GridTrack::px(ui_builder.settings.base_width),
+                        GridTrack::px(ui_builder.settings.inner_height),
+                        GridTrack::px(ui_builder.settings.base_width),
+                    ],
                     ..Default::default()
                 },
             }
@@ -193,22 +240,19 @@ pub mod components {
 
     impl UiComponent for UiContainer {
         fn new<'a>(builder: &mut UiBuilder, width: Val, height: Val, z: f32) -> Self {
-            let window = &builder.window.single();
             Self {
                 style: Style {
                     width,
                     height,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    padding: UiRect::all(Val::Px(32.0 * window.scale_factor())),
+                    padding: UiRect::all(Val::Px(builder.settings.base_spacing * 2.0)),
+                    row_gap: Val::Px(builder.settings.base_spacing * 2.0),
                     flex_direction: FlexDirection::Column,
+                    display: Display::Grid,
                     ..Default::default()
                 },
-                ui_style: UiStyle {
-                    color: builder.game_assets.colors.get(GameColor::Primary),
-                    border_color: Some(builder.game_assets.colors.get_content(GameColor::Primary)),
-                    ..Default::default()
-                },
+                ui_style: builder.get_ui_style(GameColor::Primary),
                 node: Box::new(|style| NodeBundle {
                     style,
                     ..Default::default()
@@ -229,6 +273,11 @@ pub mod components {
             self.ui_style.color = ui_builder.game_assets.colors.get(game_color);
             self.ui_style.border_color =
                 Some(ui_builder.game_assets.colors.get_content(game_color));
+            self
+        }
+
+        pub fn empty(mut self) -> Self {
+            self.ui_style = UiStyle::empty();
             self
         }
     }
@@ -271,20 +320,13 @@ pub mod components {
                 style: Style {
                     width,
                     height,
-                    padding: UiRect::all(Val::Px(12.0 * builder.window.single().scale_factor())),
-                    margin: UiRect::all(Val::Px(12.0 * builder.window.single().scale_factor())),
-                    min_width: Val::Percent(100.0),
-                    justify_content: JustifyContent::Center,
+                    padding: UiRect::all(Val::Px(builder.settings.base_spacing)),
+                    justify_items: JustifyItems::Center,
                     align_items: AlignItems::Center,
+                    display: Display::Grid,
                     ..Default::default()
                 },
-                ui_style: UiStyle {
-                    color: builder.game_assets.colors.get(GameColor::Secondary),
-                    border_color: Some(
-                        builder.game_assets.colors.get_content(GameColor::Secondary),
-                    ),
-                    ..Default::default()
-                },
+                ui_style: builder.get_ui_style(GameColor::Secondary),
                 text_style: builder.text_styles.get(
                     FontType::Regular,
                     FontSize::Medium,
@@ -364,9 +406,11 @@ pub mod components {
                 style: Style {
                     width,
                     height,
-                    padding: UiRect::all(Val::Px(20.0 * builder.window.single().scale_factor())),
+                    padding: UiRect::all(Val::Px(builder.settings.base_spacing)),
+                    justify_self: JustifySelf::Center,
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
+                    display: Display::Grid,
                     ..Default::default()
                 },
                 text_style: builder.text_styles.get(
@@ -384,33 +428,34 @@ pub mod components {
     }
 }
 
-pub mod styles {
-    use super::*;
-    use std::default::Default;
+// pub mod styles {
+//     use super::*;
+//     use std::default::Default;
 
-    pub fn container(width: Val, height: Val) -> Style {
-        Style {
-            width,
-            height,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            ..Default::default()
-        }
-    }
+//     pub fn container(width: Val, height: Val) -> Style {
+//         Style {
+//             width,
+//             height,
+//             align_items: AlignItems::Center,
+//             justify_content: JustifyContent::Center,
+//             ..Default::default()
+//         }
+//     }
 
-    pub fn container_node(width: Val, height: Val) -> NodeBundle {
-        NodeBundle {
-            style: container(width, height),
-            ..Default::default()
-        }
-    }
-}
+//     pub fn container_node(width: Val, height: Val) -> NodeBundle {
+//         NodeBundle {
+//             style: container(width, height),
+//             ..Default::default()
+//         }
+//     }
+// }
 
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<UiState>()
+            .init_resource::<UiSettings>()
             .add_systems(Startup, spawn_camera)
             .add_systems(
                 Update,
